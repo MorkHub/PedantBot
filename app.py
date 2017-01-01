@@ -155,6 +155,25 @@ async def test(message,*args):
     """Print debug output"""
     await client.send_message(message.channel,'```py\n'+str(args)+'\n```\n')
 
+@register('help','[command name]',rate=3)
+async def help(message,*args):
+    """Display help message(s), optionally append command name for specific help"""
+    command_name = ' '.join(args)
+    if args == ():
+        admin_commands = ''; standard_commands = ''
+        for command_name,cmd in sorted(commands.items(),key=lambda x: (x[1].admin,x[0])):
+            if cmd.admin:
+                admin_commands += MESG.get('cmd_doc','{0.command_name}: {0.__doc__}').format(cmd) + "\n"
+            else:
+                standard_commands += MESG.get('cmd_doc','{0.command_name}: {0.__doc__}').format(cmd) + "\n"
+        await client.send_message(message.channel,MESG.get('cmd_list','Commands:\n{0}\nAdmin Commands:\n{1}').format(standard_commands,admin_commands))
+    else:
+        try:
+            cmd = commands[command_name]
+            await client.send_message(message.channel,MESG.get('cmd_help','{0.command_name}:\n```{0.usage}: {0.__doc__}```').format(cmd))
+        except KeyError:
+            await client.send_message(message.channel,MESG.get('cmd_notfound','`{0}` not found.').format(command_name)) 
+
 """Log exceptions nicely"""
 async def log_exception(e,location=None):
     try:
