@@ -301,6 +301,17 @@ async def edit_reminder(message,*args):
 
     await client.send_message(message.channel, 'Reminder re-scheduled')
 
+@register('oauth','<OAuth client ID>')
+async def oauth_link(message,*args):
+    """Get OAuth invite link"""
+    logger.info('OAuth')
+    if len(message.content.split()) > 2:
+        return False
+
+    client_id = args[0] if len(args) == 1 else None
+
+    await client.send_message(message.channel, discord.utils.oauth_url(client_id if client_id else client.user.id, permissions=discord.Permissions.all(), server=None, redirect_uri=None))
+
 @register('fkoff',admin=True)
 @register('restart',admin=True)
 async def fkoff(message,*args):
