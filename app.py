@@ -185,6 +185,77 @@ async def log_exception(e,location=None):
     except:
         pass
 
+"""Reminders system"""
+def get_reminder(invoke_time):
+    """Returns reminder with specified invoke_time"""
+    invoke_time = int(invoke_time)
+    for rem in reminders:
+        if rem['invoke_time'] == invoke_time:
+            return rem
+
+    return None
+
+async def do_reminder(client, invoke_time):
+    """Schedules and executes reminder"""
+    cancel_ex = None
+    try:
+        reminder = get_reminder(invoke_time)
+        wait = reminder['time']-int(time.time())
+        if wait > 0:
+            await asyncio.sleep(wait)
+        else:
+            chan = client.get_channel(reminder['channel_id'])
+            await client.send_message(chan, 'The next reminder in channel ' + chan.name + ' is delayed by approximately ' + str(math.ceil(-wait/60.0)) + ' minutes, this is due to a bot fault')
+
+        #get again to sync
+        reminder = get_reminder(invoke_time)
+        reminder['cancelled'] = True
+        logger.info('Reminder ready')
+        logger.info(' -> ' + reminder['user_mention'] + ': ' + reminder['message'])
+
+        await client.send_message(client.get_channel(reminder['channel_id']), reminder['user_mention'] + ': ' + reminder['message'])
+    except asyncio.CancelledError as e:
+        cancel_ex = e
+        reminder = get_reminder(invoke_time)
+        if reminder['cancelled']:
+            logger.info(' -> reminder ' + str(invoke_time) + ' cancelled')
+            await client.send_message(client.get_channel(reminder['channel_id']), 'Reminder for '+reminder['user_name']+' in '+str(reminder['time']-int(time.time()))+' secs cancelled')
+        else:
+            logger.info(' -> reminder ' + str(invoke_time) + ' removed')
+
+    if reminder['cancelled']:
+        reminders.remove(reminder)
+
+    save_reminders()
+
+    if cancel_ex:
+        raise cancel_ex
+
+"""Exit procedure"""
+@atexit.register
+def save_reminders():
+    """Save all in-memory reminders to file"""
+    str = ''
+    rems = []
+    for rem in reminders[:]:
+        rems.append({'user_name':rem['user_name'], 'user_mention':rem['user_mention'], 'invoke_time':rem['invoke_time'], 'time':rem['time'], 'channel_id':rem['channel_id'], 'message':rem['message'], 'is_cancelled':rem['is_cancelled']})
+    for rem in rems:
+        rem['task'] = None
+        str += json.dumps(rem, sort_keys=True, skipkeys=True) + '\n'
+    with open(CONF.get('dir_pref','/home/shwam3/')+'reminders.txt', 'w') as file:
+        file.write(str)
+
+"""Load reminders from file into memory"""
+reminders = []
+if os.path.isfile(CONF.get('dir_pref','/home/shwam3/')+'reminders.txt'):
+    with open(CONF.get('dir_pref','/home/shwam3/')+'reminders.txt') as file:
+        for line in file:
+            try:
+                reminders.append(json.loads(line))
+            except json.decoder.JSONDecodeError as e:
+                logger.error('JSON Error:')
+                logger.exception(e)
+
 """Update bot status: "Playing Wikipedia: Albert Einstein"""
 async def update_status():
     try:
