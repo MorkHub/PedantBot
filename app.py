@@ -349,6 +349,74 @@ async def oauth_link(message,*args):
 
     await client.send_message(message.channel, discord.utils.oauth_url(client_id if client_id else client.user.id, permissions=discord.Permissions.all(), server=None, redirect_uri=None))
 
+@register('pedant','<term>',rate=5)
+@register('define','<term>',rate=5)
+async def define(message, *args):
+    """Search for a wikipedia page and show summary"""
+    if not args:
+        return False
+
+    term = args[0]
+    search = term
+    content = None
+    found = False
+
+    logger.info('Finding definition: "' + term + '"')
+
+    if term in special_defs:
+        logger.info(' -> Special def')
+        content = special_defs[term.lower()]
+        if content.startswith('wiki:'):
+            term = content[5:]
+            content = None
+        else:
+            found = True
+
+    try:
+        if not found:
+            arts = wikipedia.search(term)
+            if len(arts) == 0:
+                logger.info(' -> No results found')
+                await client.send_message(message.channel, MESG.get('define_none','`{0}` not found.').format(term))
+                return
+            else:
+                logger.info(' -> Wiki page')
+                try:
+                    content = wikipedia.summary(arts[0], chars=750)
+                except wikipedia.DisambiguationError as de:
+                    logger.info(' -> ambiguous wiki page')
+                    content = wikipedia.summary(de.options[0], chars=750)
+
+        logger.info(' -> Found stuff')
+        embed = discord.Embed(title=MESG.get('define_title','{0}').format(term),
+                              description=''.join([x for x in content if x in ALLOWED_EMBED_CHARS]),
+                              color=colour(message)
+                             )
+
+        await client.send_message(message.channel,embed=embed)
+    except Exception as e:
+        logger.exception(e)
+        await client.send_message(message.channel,MESG.get('define_error','Error searching for {0}').format(term))
+
+@register('random',rate=5)
+async def random_wiki(message,*args):
+    """Retrieve a random WikiPedia article"""
+    logger.info('Finding random article')
+    term = wikipedia.random(pages=1)
+
+    logger.info(' -> Found: ' + term)
+    embed = discord.Embed(title='Random article',
+                            type='rich',
+                            url='https://en.wikipedia.org/wiki/'+term,
+                            description=''.join(x for x in wikipedia.summary(term, chars=450) if x in ALLOWED_EMBED_CHARS),
+                            color=colour(message)
+                         )
+    embed.set_thumbnail(url='https://en.wikipedia.org/static/images/project-logos/enwiki.png')
+    embed.set_author(name=term)
+    embed.set_footer(text='Requested: random')
+
+    await client.send_message(message.channel, embed=embed)
+
 @register('fkoff',admin=True)
 @register('restart',admin=True)
 async def fkoff(message,*args):
@@ -364,8 +432,19 @@ async def fkoff(message,*args):
         logger.exception(e)
         pass
 
-"""Log exceptions nicely"""
+"""Utility functions"""
+def colour(message=None):
+    """Return user's primary role colour"""
+    try:
+        if message:
+            return sorted([x for x in message.author.roles if x.colour != discord.Colour.default()], key=lambda x: -x.position)[0].colour
+    except:
+        pass
+
+    return discord.Colour.default()
+
 async def log_exception(e,location=None):
+    """Log exceptions nicely"""
     try:
         exc = ''.join(traceback.format_exception(None, e, e.__traceback__).format(chain=True))
         exc = [exc[i:i+2000-6] for i in range(0, len(exc), 2000-6)]
@@ -374,6 +453,7 @@ async def log_exception(e,location=None):
             await client.send_message('257152358490832906','```{:.1994}```'.format(ex))
     except:
         pass
+
 
 """Reminders system"""
 def get_reminder(invoke_time):
