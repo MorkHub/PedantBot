@@ -419,12 +419,12 @@ async def random_wiki(message,*args):
 
 @register('perms',admin=True)
 async def perms(message,*args):
-    """List permissions available to this bot"""
-    bot_member = message.server.get_member(message.mentions[0].id if len(message.mentions) > 0 else client.user.id)
-    perms = message.channel.permissions_for(bot_member)
+    """List permissions available to this  bot"""
+    member = message.server.get_member(message.mentions[0].id if len(message.mentions) > 0 else client.user.id)
+    perms = message.channel.permissions_for(member)
     perms_list = [' '.join(w.capitalize() for w in x[0].split('_')).replace('Tts','TTS') for x in perms if x[1]]
 
-    await client.send_message(message.channel, '**Permissions:**\n```{1}```'.format('\n'.join(perms_list),perms))
+    await client.send_message(message.channel, '**Perms for {0} [{2.value}]:**\n```{1}```'.format(member.name,'\n'.join(perms_list),perms))
 
 @register('fkoff',admin=True)
 @register('restart',admin=True)
