@@ -526,6 +526,16 @@ if os.path.isfile(CONF.get('dir_pref','/home/shwam3/')+'reminders.txt'):
                 logger.error('JSON Error:')
                 logger.exception(e)
 
+"""Import definition overrides"""
+special_defs = {}
+if os.path.isfile(CONF.get('dir_pref','/home/shwam3/')+'special_defs.txt'):
+    with open(CONF.get('dir_pref','/home/shwam3/')+'special_defs.txt') as file:
+        for line in file:
+            if line.find(':') < 0:
+                continue
+            line = line.split(':',1)
+            special_defs[line[0].lower()] = line[1].replace('\n','')
+
 """Update bot status: "Playing Wikipedia: Albert Einstein"""
 async def update_status():
     try:
