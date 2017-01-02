@@ -301,6 +301,21 @@ async def edit_reminder(message,*args):
 
     await client.send_message(message.channel, 'Reminder re-scheduled')
 
+@register('fkoff',admin=True)
+@register('restart',admin=True)
+async def fkoff(message,*args):
+    """Restart the bot"""
+    logger.info('Stopping')
+    await client.send_message(message.channel, MESG.get('shutdown','Shutting down.'))
+
+    await client.logout()
+
+    try:
+        sys.exit()
+    except Exception as e:
+        logger.exception(e)
+        pass
+
 """Log exceptions nicely"""
 async def log_exception(e,location=None):
     try:
