@@ -174,6 +174,133 @@ async def help(message,*args):
         except KeyError:
             await client.send_message(message.channel,MESG.get('cmd_notfound','`{0}` not found.').format(command_name)) 
 
+@register('remindme','in <number of> [seconds|minutes|hours]')
+async def remindme(message,*args):
+    if len(args) < 3:
+        return False
+
+    if args[0] != 'in' or int(args[1]) <= 0:
+        return False
+
+    invoke_time = int(time.time())
+
+    logger.info('Set reminder')
+    await client.send_typing(message.channel)
+
+    reminder_msg = ' '.join(args[2::])
+    is_cancelled = False
+    split = reminder_msg.split(' ',1)
+    unit = split[0]
+    unit_specified = True
+    reminder_if_unit = split[1] if len(split) > 1 else None
+
+    _s = ['seconds','second','sec','secs']
+    _m = ['minutes','minute','min','mins']
+    _h = ['hours'  ,'hour'  ,'hr' ,'hrs' ]
+    _d = ['days'   ,'day'   ,'d'         ]
+
+    if unit in _s:
+        unit_mult = 1
+    elif unit in _m:
+        unit_mult = 60
+    elif unit in _h:
+        unit_mult = 3600
+    elif unit in _d:
+        unit_mult = 3600 * 24
+    else:
+        unit_mult = 60
+        unit_specified = False
+
+    if not reminder_if_unit and not unit_specified:
+        return False
+
+    if reminder_if_unit and unit_specified:
+        reminder_msg = reminder_if_unit
+
+    if not reminder_msg:
+        return False
+
+    remind_delta = int(args[1]) * unit_mult
+    remind_timestamp = invoke_time + remind_delta
+
+    if remind_delta <= 0:
+        await client.send_message(message.channel, MESG.get('reminder_illegal','Illegal argument'))
+        return
+
+    reminder = {'user_name':message.author.display_name, 'user_mention':message.author.mention, 'invoke_time':invoke_time, 'time':remind_timestamp, 'channel_id':message.channel.id, 'message':reminder_msg, 'task':None, 'is_cancelled':is_cancelled}
+    reminders.append(reminder)
+    async_task = asyncio.ensure_future(do_reminder(client, invoke_time))
+    reminder['task'] = async_task
+
+    logger.info(' -> reminder scheduled for ' + str(datetime.fromtimestamp(remind_timestamp)))
+    await client.send_message(message.channel, message.author.mention + ' Reminder scheduled for ' + datetime.fromtimestamp(remind_timestamp).strftime(dateFormat))
+
+    if remind_delta > 15:
+        save_reminders()
+
+@register('reminders',rate=1)
+async def list_reminders(message,*args):
+    logger.info('Listing reminders')
+
+    msg = 'Current reminders:\n'
+
+    for rem in reminders:
+        try:
+            msg += ('~~' if rem.get('is_cancelled',False) else '') + rem['user_name'] + ' at ' + datetime.fromtimestamp(rem['time']).strftime(dateFormat) + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)' + ('~~\n' if rem.get('is_cancelled',False) else '\n')
+        except:
+            msg += ('~~' if rem.get('is_cancelled',False) else '') + rem['user_name'] + ' in ' + str(rem['time']) + ' seconds: ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)' + ('~~\n' if rem.get('is_cancelled',False) else '\n')
+
+    if len(reminders) == 0:
+        msg += 'No reminders'
+
+    await client.send_message(message.channel, msg)
+
+@register('cancelreminder','<reminder id>')
+async def cancel_reminder(message,*args):
+    if len(args) != 1:
+        return
+
+    logger.info('Cancel reminder')
+
+    invoke_time = int(args[0])
+
+    reminder = get_reminder(invoke_time)
+    reminder['is_cancelled'] = True
+    reminder['task'].cancel()
+
+    await client.send_message(message.channel,MESG.get('reminder_cancel','Reminder #{1[invoke_time]}for {0} cancelled.').format(datetime.fromtimestamp(rem['time'])).strftime(dateFormat),reminder)
+
+@register('editreminder', '<reminder ID> <message|timestamp> [data]',rate=3)
+async def edit_reminder(message,*args):
+    """Edit scheduled reminders"""
+    logger.info('Edit reminder')
+
+    invoke_time = int(args[0])
+
+    reminder = get_reminder(invoke_time)
+
+    if not reminder:
+        await client.send_message(message.channel, 'Invalid reminder ID `{0}`'.format(invoke_time))
+        return
+
+    try:
+        if args[1].lower() in ['message','msg']:
+            reminder['message'] = ' '.join(args[2::])
+
+        elif args[1].lower() in ['timestamp','time','ts']:
+            reminder['time'] = int(args[2])
+
+        else:
+            return False
+    except:
+        return False
+
+    reminder['task'].cancel()
+    async_task = asyncio.ensure_future(do_reminder(client, invoke_time))
+    reminder['task'] = async_task
+
+    await client.send_message(message.channel, 'Reminder re-scheduled')
+
 """Log exceptions nicely"""
 async def log_exception(e,location=None):
     try:
