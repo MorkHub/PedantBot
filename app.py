@@ -301,6 +301,19 @@ async def edit_reminder(message,*args):
 
     await client.send_message(message.channel, 'Reminder re-scheduled')
 
+@register('ping','[<host> [count]]',rate=5)
+async def ping(message,*args):
+    """Test latency by receiving a ping message"""
+    await client.send_message(message.channel, MESG.get('ping','Pong.'))
+
+@register('ip', admin=True)
+async def ip(message,*args,admin=True):
+    """Looks up external IP of the host machine"""
+    response = urllib.request.urlopen('https://api.ipify.org/')
+    IP_address = response.read().decode('utf-8')
+
+    await client.send_message(message.channel, MESG.get('ip_addr','IP address: `{0}`').format(IP_address))
+
 @register('oauth','<OAuth client ID>')
 async def oauth_link(message,*args):
     """Get OAuth invite link"""
