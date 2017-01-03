@@ -510,6 +510,21 @@ async def bigger(message,*args):
     else:
         await client.send_message(message.channel,MESG.get('emoji_unsupported','Unsupported emoji.').format(message.server.name))
 
+@register('avatar','@<mention user>',rate=1)
+async def avatar(message,*args):
+    """Display a user's avatar"""
+    if len(message.mentions) < 1:
+        return False
+
+    user = message.mentions[0]
+    name = user.nick or user.name
+    avatar = user.avatar_url or user.default_avatar_url
+
+    embed = discord.Embed(title=name,type='rich',colour=colour(message))
+    embed.set_image(url=avatar)
+    embed.set_footer(text='ID: #{}'.format(user.id))
+    await client.send_message(message.channel,embed=embed)
+
 @register('fkoff',admin=True)
 @register('restart',admin=True)
 async def fkoff(message,*args):
