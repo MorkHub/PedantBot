@@ -473,6 +473,43 @@ async def emoji_grid(message,*args):
 
     await client.send_message(message.channel,string)
 
+@register('showemoji')
+async def showemoji(message,*args):
+    """Displays all available custom emoji in this server"""
+    await client.send_message(message.channel,' '.join(['{}'.format('<:{}:{}>'.format(emoji.name,emoji.id),emoji.name) for emoji in message.server.emojis]))
+
+@register('bigger','<custom server emoji>')
+async def bigger(message,*args):
+    """Display a larger image of the specified emoji"""
+    logger.info('Debug emoji:')
+    await client.send_typing(message.channel)
+
+    try:
+        thisEmoji = args[0]
+    except:
+        return False
+
+    if thisEmoji:
+        logger.info(' -> ' + thisEmoji)
+
+    useEmoji = None
+    for emoji in message.server.emojis:
+        if str(emoji).lower() == thisEmoji.lower():
+            useEmoji = emoji
+
+    emoji = useEmoji
+    if useEmoji != None:
+        logger.info(' -> id: ' + emoji.id)
+        logger.info(' -> url: ' + emoji.url)
+
+        embed = discord.Embed(title=emoji.name,color=colour(message))
+        embed.set_image(url=emoji.url)
+        embed.set_footer(text='ID #'+emoji.id)
+
+        await client.send_message(message.channel,embed=embed)
+    else:
+        await client.send_message(message.channel,MESG.get('emoji_unsupported','Unsupported emoji.').format(message.server.name))
+
 @register('fkoff',admin=True)
 @register('restart',admin=True)
 async def fkoff(message,*args):
