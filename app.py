@@ -314,6 +314,30 @@ async def ip(message,*args,admin=True):
 
     await client.send_message(message.channel, MESG.get('ip_addr','IP address: `{0}`').format(IP_address))
 
+@register('speedtest',admin=True,rate=5)
+async def speedtest(message):
+    """Run a speedtest from the bot's LAN."""
+
+    st = pyspeedtest.SpeedTest(host='speedtest.as50056.net')
+    msg = await client.send_message(message.channel, MESG.get('st_start','Speedtest ...'))
+
+    try:
+        ping = str(round(st.ping(),1))
+        logger.info(' -> ping: ' + ping + 'ms')
+        msg = await client.edit_message(msg, MESG.get('st_ping','Speedtest:\nping: {}ms ...').format(ping))
+
+        down = str(round(st.download()/1024/1024,2))
+        logger.info(' -> download: ' + down + 'Mb/s')
+        msg = await client.edit_message(msg, MESG.get('st_down','Speedtest:\nping: {0}ms,  up: {1}MB/s ...').format(ping,down))
+
+        up = str(round(st.upload()/1024/1024,2))
+        logger.info(' -> upload: ' + up + 'Mb/s')
+        msg = await client.edit_message(msg, MESG.get('st_up','Speedtest:\nping: {0}ms,  up: {1}MB/s, down: {2}MB/s').format(ping,down,up))
+
+    except Exception as e:
+        logger.exception(e)
+        await client.edit_message(msg, msg.content + MESG.get('st_error','Error.'))
+
 @register('oauth','<OAuth client ID>')
 async def oauth_link(message,*args):
     """Get OAuth invite link"""
