@@ -426,6 +426,53 @@ async def perms(message,*args):
 
     await client.send_message(message.channel, '**Perms for {0} [{2.value}]:**\n```{1}```'.format(member.name,'\n'.join(perms_list),perms))
 
+@register('shrug')
+async def shrug(message,*args):
+    """Send a shrug: mobile polyfill"""
+    embed = discord.Embed(title=message.author.name+' sent something:',description='¯\_(ツ)_/¯',color=colour(message),timestamp=datetime.now())
+    await client.send_message(message.channel,embed=embed)
+
+@register('wrong')
+async def wrong(message,*args):
+    """Send the WRONG! image"""
+    embed = discord.Embed(title='THIS IS WRONG!',color=colour(message))
+    embed.set_image(url='http://i.imgur.com/CMBlDO2.png')
+
+    await client.send_message(message.channel,embed=embed)
+
+@register('thyme')
+async def thyme(message,*args):
+    """Send some thyme to your friends"""
+    embed = discord.Embed(title='Thyme',timestamp=message.edited_timestamp or message.timestamp,color=colour(message))
+    embed.set_image(url='http://shwam3.altervista.org/thyme/image.jpg')
+    embed.set_footer(text='{} loves you long thyme'.format(message.author.name))
+
+    await client.send_message(message.channel,embed=embed)
+
+@register('grid','<x> <y>',rate=1)
+async def emoji_grid(message,*args):
+    """Display a custom-size grid made of server custom emoji"""
+    try:
+        x = int(args[0]); y = int(args[1])
+    except ValueError:
+        x,y = 0,0
+
+    x,y = min(x,12),min(y,4)
+
+    emoji = message.server.emojis
+    string = '**{}x{} Grid of {} emoji:**\n'.format(x,y,len(emoji))
+
+    for i in range(y):
+        for j in range(x):
+            temp = emoji[randrange(len(emoji))]
+            temp_emoji = '<:{}:{}> '.format(temp.name,temp.id)
+            if len(string) + len(temp_emoji) <= 2000:
+                string += temp_emoji
+        if i < y-1:
+            string += '\n'
+
+    await client.send_message(message.channel,string)
+
 @register('fkoff',admin=True)
 @register('restart',admin=True)
 async def fkoff(message,*args):
