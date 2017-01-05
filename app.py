@@ -587,6 +587,41 @@ async def vote(message,*args):
             await client.send_message(msg.channel,MESG.get('vote_win','"{0}", Winner: {1}').format(question,reacts[0][0],graph=graph.draw(msg.reactions,height=5,find=lambda x: x.count-1)))
             logger.info(' -> %s won' % reacts[0][0])
 
+@register('quote','[quote id]',rate=2)
+async def quote(message,*args):
+    """Embed a quote from https://themork.co.uk/quotes"""
+    logger.info('Quote')
+
+    id = args[0]
+
+    cnx = MySQLdb.connect(user='readonly', db='my_themork')
+    cursor = cnx.cursor()
+
+    query = ("SELECT * FROM `q2` WHERE `id`='{}' ORDER BY RAND() LIMIT 1".format(id))
+    cursor.execute(query)
+
+    if cursor.rowcount < 1:
+        query = ("SELECT * FROM `q2` ORDER BY RAND() LIMIT 1")
+        cursor.execute(query)
+
+    for (id,quote,author,date,_,_) in cursor:
+        embed = discord.Embed(title='TheMork Quotes',
+                                description=quote,
+                                type='rich',
+                                url='https://themork.co.uk/quotes/?q='+ str(id),
+                                timestamp=datetime(*date.timetuple()[:-4]),
+                                color=colour(message)
+        )
+        embed.set_thumbnail(url='https://themork.co.uk/assets/main.png')
+        embed.set_author(name=author)
+        embed.set_footer(text='Quote ID: #' + str(id))
+
+        await client.send_message(message.channel,embed=embed)
+
+        break
+    cursor.close()
+    cnx.close()
+
 @register('fkoff',admin=True)
 @register('restart',admin=True)
 async def fkoff(message,*args):
