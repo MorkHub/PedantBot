@@ -525,6 +525,68 @@ async def avatar(message,*args):
     embed.set_footer(text='ID: #{}'.format(user.id))
     await client.send_message(message.channel,embed=embed)
 
+@register('vote','"<vote question>" <sequence of emoji responses>',rate=30)
+async def vote(message,*args):
+    """Initiate a vote using Discord Message Reactions."""
+    logger.info(message.author.name + ' started a vote')
+
+    await client.send_typing(message.channel)
+    stuff = ' '.join(args)
+
+    try:
+        q, question = re.findall('(["\'])([^\\1]*)\\1',stuff)[0]
+    except:
+        return False
+
+    allowedReactions = str(stuff[len(q+question+q)+1:]).replace('  ',' ').split()
+
+    if len(allowedReactions) < 1:
+        return False
+
+    logger.info(' -> "' + question + '"')
+    logger.info(' -> %s' % ', '.join(allowedReactions))
+
+    msg = await client.send_message(message.channel, MESG.get('vote_title','"{0}" : {1}').format(question,allowedReactions))
+    digits = MESG.get('digits',['0','1','2','3','4','5','6','7','8','9'])
+
+    for e in allowedReactions:
+        await client.add_reaction(msg, e)
+    for i in range(30,0,-1):
+        tens = round((i - (i % 10)) / 10)
+        ones = i % 10
+        num = (digits[tens] if (tens > 0) else '') + ' ' + digits[ones]
+
+        await client.edit_message(msg,msg.content + MESG.get('vote_timer','Time left: {0}').format(num))
+        await asyncio.sleep(1)
+
+    await client.edit_message(msg,msg.content + MESG.get('vote_ended','Ended.'))
+    msg = await client.get_message(msg.channel,msg.id)
+
+    reacts = []
+    validReactions = 0
+
+    if len(msg.reactions) == 0:
+        await client.send_message(msg.channel,MESG.get('vote_none','No valid votes.'))
+        logger.info(' -> no winner')
+
+    else:
+        for reaction in msg.reactions:
+            if reaction.emoji in allowedReactions:
+                if reaction.count > 1:
+                    reacts.append((reaction.emoji,reaction.count -1))
+                    validReactions += 1
+
+        if validReactions == 0:
+            await client.send_message(msg.channel,MESG.get('vote_none','No valid votes.'))
+            logger.info(' -> no winner')
+
+        else:
+            reacts = sorted(reacts, key=lambda x: x[1])
+            reacts.reverse()
+
+            await client.send_message(msg.channel,MESG.get('vote_win','"{0}", Winner: {1}').format(question,reacts[0][0],graph=graph.draw(msg.reactions,height=5,find=lambda x: x.count-1)))
+            logger.info(' -> %s won' % reacts[0][0])
+
 @register('fkoff',admin=True)
 @register('restart',admin=True)
 async def fkoff(message,*args):
