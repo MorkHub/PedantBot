@@ -622,6 +622,23 @@ async def quote(message,*args):
     cursor.close()
     cnx.close()
 
+@register('abuse','<channel> <content>',admin=True)
+@register('sendmsg','<channel> <content>',admin=True)
+async def abuse(message,*args):
+    """Harness the power of Discord"""
+    if len(args) < 2:
+        return False
+
+    channel = args[0]
+    if channel == 'here':
+        channel = message.channel.id
+    msg = ' '.join(args[1::])
+
+    try:
+        await client.send_message(client.get_channel(channel),msg)
+    except Exception as e:
+        await client.send_message(message.channel,MESG.get('abuse_error','Error.'))
+
 @register('fkoff',admin=True)
 @register('restart',admin=True)
 async def fkoff(message,*args):
