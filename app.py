@@ -654,6 +654,27 @@ async def fkoff(message,*args):
         logger.exception(e)
         pass
 
+@register('maths','<expression>',rate=1)
+@register('calc','<expression>',rate=1)
+async def do_calc(message,*args):
+    """Perform mathematical calculation: numbers and symbols (+-*/) allowed only"""
+    logger.info('Calc')
+
+    if len(args) < 1:
+        return False
+
+    maths = ''.join(args)
+
+    if (re.findall('[^0-9\(\)\/\*\+-\.]+',maths) != []):
+        await client.send_message(message.channel, MESG.get('calc_illegal','Illegal chars in {0}').format(maths))
+
+    else:
+        logger.info(' -> ' + str(maths))
+        try:
+            await client.send_message(message.channel,'`{} = {}`'.format(maths,eval(maths)))
+        except:
+            await client.send_message(message.channel, MESG.get('maths_illegal','Error in {0}').format(maths))
+
 """Utility functions"""
 def colour(message=None):
     """Return user's primary role colour"""
