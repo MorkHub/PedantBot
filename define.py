@@ -30,7 +30,7 @@ import wikipedia, wikia
 admins = ['154542529591771136','154543065594462208']
 last_message_time = {}
 
-dir_pref = '/home/shwam3/' if platform.system() == 'Linux' else ''
+dir_pref = '/home/shwam3/pedant/' if platform.system() == 'Linux' else ''
 cmd_pref = '/'
 dateFormat = '%A %d %B %Y @ %I:%M%p'
 ALLOWED_EMBED_CHARS = ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~'
