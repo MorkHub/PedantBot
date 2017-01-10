@@ -87,3 +87,5 @@ ENV/
 
 # Rope project settings
 .ropeproject
+special_defs.txt
+tokens.txt
