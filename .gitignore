@@ -88,3 +88,6 @@ ENV/
 # Rope project settings
 .ropeproject
 pedant_config.py
+*.log*
+special_defs.txt
+reminders.txt
