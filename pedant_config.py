@@ -10,7 +10,7 @@ CONF = {
 	'logfile'      : 'pedant.log',
 	'date_format'  : '%A %d %B %Y @ %I:%M%p',
 	'VERSION'      : '2.0.5',
-	'oauth_token'  : 'MTY5MTEyMzU5OTM4MjkzNzYw.C1FhGw.77rBAVDk3zCAIpF8jB0p4wDxJXQ',
+	'oauth_token'  : '',
 }
 
 MESG = {
