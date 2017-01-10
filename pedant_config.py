@@ -2,7 +2,8 @@ CONF = {
     'log_format'   : '[%(asctime)s] [%(name)s] [%(levelname)s] [%(module)s:%(lineno)s %(funcName)s] %(message)s',
     
     'admins'       : ['154542529591771136', #TheMork#1944
-		    	      '154543065594462208'  #Shwam3#8508
+		    	      '154543065594462208',  #Shwam3#8508
+		              '188672208233693184' #Nobody important
 		    	     ],
 
 	'dir_pref'     : '/home/mark/Documents/pedant/',
