@@ -20,6 +20,8 @@ import sys
 import time
 import traceback
 import urllib
+import subprocess
+import calendar as cal
 from random import randrange
 
 import discord
@@ -131,24 +133,24 @@ async def on_message(message):
                         pass
                     await client.send_typing(message.channel)
 
-                    if not cmd.admin or (cmd.admin and (message.author.id in CONF.get('admins',[]) or message.channel.permissions_for(message.author).admin)):
+                    if not cmd.admin or (cmd.admin and message.author.id in CONF.get('admins',[])):
                         executed = await cmd(message,*command_args)
                         if executed == False:
                             msg = await client.send_message(message.channel,MESG.get('cmd_usage','USAGE: {}.usage').format(cmd))
-                            asyncio.ensure_future(message_timeout(msg, 10))
+                            asyncio.ensure_future(message_timeout(msg, 40))
                     else:
                         msg = await client.send_message(message.channel,MESG.get('nopermit','{0.author.mention} Not allowed.').format(message))
-                        asyncio.ensure_future(message_timeout(msg, 10))
+                        asyncio.ensure_future(message_timeout(msg, 40))
                 else:
                     # Rate-limited
                     pass
             except KeyError:
                 msg = await client.send_message(message.channel, MESG.get('cmd_notfound','`{0}` not found.').format(command_name))
-                asyncio.ensure_future(message_timeout(msg, 10))
+                asyncio.ensure_future(message_timeout(msg, 40))
 
             except Exception as e:
                msg = await client.send_message(message.channel,MESG.get('error','Error in `{1}`: {0}').format(e,command_name))
-               asyncio.ensure_future(message_timeout(msg, 10))
+               asyncio.ensure_future(message_timeout(msg, 40))
 
     except Exception as e:
         logger.error('error in on_message')
@@ -160,7 +162,6 @@ async def on_message(message):
 async def test(message,*args):
     """Print debug output"""
     msg = await client.send_message(message.channel,'```py\n{0}\n```\n```py\n{1}\n```'.format(args,message.attachments))
-    asyncio.ensure_future(message_timeout(msg, 10))
 
 @register('help','[command name]',rate=3)
 async def help(message,*args):
@@ -180,7 +181,7 @@ async def help(message,*args):
         embed.add_field(name='Admin Commands',value='```'+admin_commands+'```',inline=True)
 
         msg = await client.send_message(message.channel,embed=embed)
-        asyncio.ensure_future(message_timeout(msg, 20))
+        asyncio.ensure_future(message_timeout(msg,120))
     else:
         try:
             cmd = commands[command_name]
@@ -188,10 +189,10 @@ async def help(message,*args):
             embed.add_field(name="Usage",value='```'+cmd.usage+'```')
             embed.add_field(name="Description",value=cmd.__doc__)
             msg = await client.send_message(message.channel,embed=embed)
-            asyncio.ensure_future(message_timeout(msg, 20))
+            asyncio.ensure_future(message_timeout(msg, 60))
         except KeyError:
             msg = await client.send_message(message.channel,MESG.get('cmd_notfound','`{0}` not found.').format(command_name))
-            asyncio.ensure_future(message_timeout(msg, 10))
+            asyncio.ensure_future(message_timeout(msg, 20))
 
 @register('remindme','in <number of> [seconds|minutes|hours]')
 async def remindme(message,*args):
@@ -244,7 +245,7 @@ async def remindme(message,*args):
 
     if remind_delta <= 0:
         msg = await client.send_message(message.channel, MESG.get('reminder_illegal','Illegal argument'))
-        asyncio.ensure_future(message_timeout(msg, 10))
+        asyncio.ensure_future(message_timeout(msg, 20))
         return
 
     reminder = {'user_name':message.author.display_name, 'user_mention':message.author.mention, 'invoke_time':invoke_time, 'time':remind_timestamp, 'channel_id':message.channel.id, 'message':reminder_msg, 'task':None, 'is_cancelled':is_cancelled}
@@ -254,7 +255,7 @@ async def remindme(message,*args):
 
     logger.info(' -> reminder scheduled for ' + str(datetime.fromtimestamp(remind_timestamp)))
     msg = await client.send_message(message.channel, message.author.mention + ' Reminder scheduled for ' + datetime.fromtimestamp(remind_timestamp).strftime(CONF.get('date_format','%A %d %B %Y @ %I:%M%p')))
-    asyncio.ensure_future(message_timeout(msg, 20))
+    asyncio.ensure_future(message_timeout(msg, 60))
 
     if remind_delta > 15:
         save_reminders()
@@ -287,7 +288,7 @@ async def list_reminders(message,*args):
         embed.add_field(name='__Cancelled Reminders__',value=reminders_no)
     
     msg = await client.send_message(message.channel, embed=embed)
-    asyncio.ensure_future(message_timeout(msg, 20))
+    asyncio.ensure_future(message_timeout(msg, 90))
 
 @register('cancelreminder','<reminder id>')
 async def cancel_reminder(message,*args):
@@ -306,10 +307,11 @@ async def cancel_reminder(message,*args):
         reminder['task'].cancel()
     except:
         msg = await client.send_message(message.channel,'Reminder not found.')
-        asyncio.ensure_future(message_timeout(msg, 10))
+        asyncio.ensure_future(message_timeout(msg, 20))
         return
 
-    await client.send_message(message.channel,'Reminder #{0[invoke_time]}: `"{0[message]}"` removed.'.format(reminder))
+    msg = await client.send_message(message.channel,'Reminder #{0[invoke_time]}: `"{0[message]}"` removed.'.format(reminder))
+    asyncio.ensure_future(message_timeout(msg, 20))
     reminders = [x for x in reminders if x['invoke_time'] != invoke_time]
 
 @register('editreminder', '<reminder ID> <message|timestamp> [data]',rate=3)
@@ -323,7 +325,7 @@ async def edit_reminder(message,*args):
 
     if not reminder:
         msg = await client.send_message(message.channel, 'Invalid reminder ID `{0}`'.format(invoke_time))
-        asyncio.ensure_future(message_timeout(msg, 10))
+        asyncio.ensure_future(message_timeout(msg, 20))
         return
 
     try:
@@ -343,7 +345,7 @@ async def edit_reminder(message,*args):
     reminder['task'] = async_task
 
     msg = await client.send_message(message.channel, 'Reminder re-scheduled')
-    asyncio.ensure_future(message_timeout(msg, 15))
+    asyncio.ensure_future(message_timeout(msg, 40))
 
 @register('ping','[<host> [count]]',rate=5)
 async def ping(message,*args):
@@ -380,7 +382,7 @@ async def speedtest(message):
     except Exception as e:
         logger.exception(e)
         msg = await client.edit_message(msg, msg.content + MESG.get('st_error','Error.'))
-        asyncio.ensure_future(message_timeout(msg, 15))
+        asyncio.ensure_future(message_timeout(msg, 20))
 
 @register('oauth','[OAuth client ID] [server ID]')
 async def oauth_link(message,*args):
@@ -393,10 +395,31 @@ async def oauth_link(message,*args):
     server_id = args[1] if len(args) > 1 else None
 
     msg = await client.send_message(message.channel, discord.utils.oauth_url(client_id if client_id else client.user.id,
-        permissions=discord.Permissions(permissions=1878125639),
+        permissions=discord.Permissions(permissions=1848765527),
         server=client.get_server(server_id) or message.server,
         redirect_uri=None))
-    asyncio.ensure_future(message_timeout(msg, 20))
+    asyncio.ensure_future(message_timeout(msg, 120))
+
+@register('invite')
+async def get_invite(message,*args):
+    """List active invite link for the current server"""
+    active_invites = await client.invites_from(message.server)
+
+    revoked_invites   = ['~~{0.url}: `{0.channel}` created by `{0.inviter}`~~ '.format(x) for x in active_invites if x.revoked]
+    unlimited_invites = [  '{0.url}: `{0.channel}` created by `{0.inviter}`'.format(x) for x in active_invites if x.max_age == 0 and x not in revoked_invites]
+    limited_invites   = [  '{0.url}: `{0.channel}` created by `{0.inviter}`'.format(x) for x in active_invites if x.max_age != 0 and x not in revoked_invites]
+
+    embed = discord.Embed(title='__Invite links for {0.name}__'.format(message.server),
+        color=colour(message))
+    if unlimited_invites:
+        embed.add_field(name='Unlimited Invites',value='\n'.join(unlimited_invites))
+    if limited_invites:
+        embed.add_field(name='Temporary/Finite Invites', value='\n'.join(limited_invites))
+    if revoked_invites:
+        embed.add_field(name='Revoked Invites', value='\n'.join(revoked_invites))
+
+    msg = await client.send_message(message.channel,embed=embed)
+    asyncio.ensure_future(message_timeout(msg, 120))
 
 @register('pedant','<term>',rate=5,alias='define')
 @register('define','<term>',rate=5)
@@ -427,7 +450,7 @@ async def define(message, *args):
             if len(arts) == 0:
                 logger.info(' -> No results found')
                 msg = await client.send_message(message.channel, MESG.get('define_none','`{0}` not found.').format(term))
-                asyncio.ensure_future(message_timeout(msg, 10))
+                asyncio.ensure_future(message_timeout(msg, 40))
                 return
             else:
                 logger.info(' -> Wiki page')
@@ -447,7 +470,7 @@ async def define(message, *args):
     except Exception as e:
         logger.exception(e)
         msg = await client.send_message(message.channel,MESG.get('define_error','Error searching for {0}').format(term))
-        asyncio.ensure_future(message_timeout(msg, 10))
+        asyncio.ensure_future(message_timeout(msg, 40))
 
 @register('random',rate=5)
 async def random_wiki(message,*args):
@@ -551,7 +574,7 @@ async def bigger(message,*args):
         await client.send_message(message.channel,embed=embed)
     else:
         msg = await client.send_message(message.channel,MESG.get('emoji_unsupported','Unsupported emoji.').format(message.server.name))
-        asyncio.ensure_future(message_timeout(msg, 10))
+        asyncio.ensure_future(message_timeout(msg, 40))
 
 @register('avatar','@<mention user>',rate=1)
 async def avatar(message,*args):
@@ -665,6 +688,27 @@ async def quote(message,*args):
     cursor.close()
     cnx.close()
 
+@register('cal')
+async def calendar(message,*args):
+    """Displays a formatted calendar"""
+    today = datetime.now()
+    embed = discord.Embed(title='Calender for {0.month}/{0.year}'.format(today),
+        description='```\n{0}\n```'.format(cal.month(today.year,today.month)),
+        color=colour(message))
+    msg = await client.send_message(message.channel,embed=embed)
+    asyncio.ensure_future(message_timeout(msg, 120))
+
+@register('servers',admin=True)
+async def connected_servers(message,*args):
+    """Lists servers currently connected"""
+    servers = ['•   **{server.name}** (`{server.id}`)'.format(server=x) for x in client.servers]
+
+    embed = discord.Embed(title='Servers {0} is connected to.'.format(client.user),
+        color=colour(message),
+            description='\n'.join(servers))
+    msg = await client.send_message(message.channel,embed=embed)
+    asyncio.ensure_future(message_timeout(msg, 120))
+
 @register('abuse','<channel> <content>',admin=True,alias='sendmsg')
 @register('sendmsg','<channel> <content>',admin=True)
 async def abuse(message,*args):
@@ -681,7 +725,7 @@ async def abuse(message,*args):
         await client.send_message(client.get_channel(channel),msg)
     except Exception as e:
         msg = await client.send_message(message.channel,MESG.get('abuse_error','Error.'))
-        asyncio.ensure_future(message_timeout(msg, 10))
+        asyncio.ensure_future(message_timeout(msg, 40))
 
 @register('perms',admin=True)
 async def perms(message,*args):
@@ -690,8 +734,8 @@ async def perms(message,*args):
     perms = message.channel.permissions_for(member)
     perms_list = [' '.join(w.capitalize() for w in x[0].split('_')).replace('Tts','TTS') for x in perms if x[1]]
 
-    msg = await client.send_message(message.channel, '**Perms for {0} [{2.value}]:**\n```{1}```'.format(member.name,'\n'.join(perms_list),perms))
-    asyncio.ensure_future(message_timeout(msg, 30))
+    msg = await client.send_message(message.channel, '**Perms for {user.name} in {server.name}: {2.value}:**\n```{1}```'.format('\n'.join(perms_list),perms,user=member,server=server))
+    asyncio.ensure_future(message_timeout(msg, 120))
 
 @register('kick','@<mention users>',admin=True)
 async def kick(message,*args):
@@ -701,12 +745,12 @@ async def kick(message,*args):
 
     if message.channel.is_private:
         msg = await client.send_message(message.channel,'Users cannot be kicked/banned from private channels.')
-        asyncio.ensure_future(message_timeout(msg, 10))
+        asyncio.ensure_future(message_timeout(msg, 40))
         return
 
     if not message.channel.permissions_for(message.server.get_member(client.user.id)).kick_members:
         msg = await client.send_message(message.channel, message.author.mention + ', I do not have permission to kick users.')
-        asyncio.ensure_future(message_timeout(msg, 10))
+        asyncio.ensure_future(message_timeout(msg, 40))
         return
 
     members = []
@@ -721,13 +765,13 @@ async def kick(message,*args):
                     pass
             else:
                 msg = await client.send_message(message.channel, message.author.mention + ', You should not kick yourself from a channel, use the leave button instead.')
-                asyncio.ensure_future(message_timeout(msg, 10))
+                asyncio.ensure_future(message_timeout(msg, 40))
     else:
         msg = await client.send_message(message.channel, message.author.mention + ', I do not have permission to kick users, or this is a private message channel.')
-        asyncio.ensure_future(message_timeout(msg, 10))
+        asyncio.ensure_future(message_timeout(msg, 40))
 
     msg = await client.send_message(message.channel,'Successfully kicked user(s): `{}`'.format('`, `'.join(members)))
-    asyncio.ensure_future(message_timeout(msg, 15))
+    asyncio.ensure_future(message_timeout(msg, 60))
 
 @register('ban','@<mention users>',admin=True)
 async def ban(message,*args):
@@ -737,12 +781,12 @@ async def ban(message,*args):
 
     if message.channel.is_private:
         msg = await client.send_message(message.channel,'Users cannot be kicked/banned from private channels.')
-        asyncio.ensure_future(message_timeout(msg, 10))
+        asyncio.ensure_future(message_timeout(msg, 40))
         return
 
     if not message.channel.permissions_for(message.server.get_member(client.user.id)).ban_members:
         msg = await client.send_message(message.channel, message.author.mention + ', I do not have permission to ban users.')
-        asyncio.ensure_future(message_timeout(msg, 10))
+        asyncio.ensure_future(message_timeout(msg, 40))
         return 
 
     members = []
@@ -757,13 +801,13 @@ async def ban(message,*args):
                     pass
             else:
                 msg = await client.send_message(message.channel, message.author.mention + ', You should not ban yourself from a channel, use the leave button instead.')
-                asyncio.ensure_future(message_timeout(msg, 10))
+                asyncio.ensure_future(message_timeout(msg, 40))
     else:
         msg = await client.send_message(message.channel, message.author.mention + ', I do not have permission to ban users, or this is a private message channel.')
-        asyncio.ensure_future(message_timeout(msg, 10))
+        asyncio.ensure_future(message_timeout(msg, 40))
 
     msg = await client.send_message(message.channel,'Successfully banned user(s): `{}`'.format('`, `'.join(members)))
-    asyncio.ensure_future(message_timeout(msg, 15))
+    asyncio.ensure_future(message_timeout(msg, 30))
 
 @register('bans',alias='bannedusers')
 @register('bannedusers')
@@ -773,7 +817,7 @@ async def banned_users(message,*args):
 
     if message.channel.is_private:
         msg = await client.send_message(message.channel,'Users cannot be kicked/banned from private channels.')
-        asyncio.ensure_future(message_timeout(msg, 10))
+        asyncio.ensure_future(message_timeout(msg, 40))
         return
 
     str = ''
@@ -782,7 +826,7 @@ async def banned_users(message,*args):
 
     embed = discord.Embed(title="Banned users in {0.name}".format(message.server),color=colour(message),description=str)
     msg = await client.send_message(message.channel,embed=embed)
-    asyncio.ensure_future(message_timeout(msg, 20))
+    asyncio.ensure_future(message_timeout(msg, 60))
 
 @register('fkoff',admin=True,alias='restart')
 @register('restart',admin=True)
