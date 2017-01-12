@@ -134,17 +134,21 @@ async def on_message(message):
                     if not cmd.admin or (cmd.admin and (message.author.id in CONF.get('admins',[]) or message.channel.permissions_for(message.author).admin)):
                         executed = await cmd(message,*command_args)
                         if executed == False:
-                            await client.send_message(message.channel,MESG.get('cmd_usage','USAGE: {}.usage').format(cmd))
+                            msg = await client.send_message(message.channel,MESG.get('cmd_usage','USAGE: {}.usage').format(cmd))
+                            asyncio.ensure_future(message_timeout(msg, 10))
                     else:
-                        await client.send_message(message.channel,MESG.get('nopermit','{0.author.mention} Not allowed.').format(message))
+                        msg = await client.send_message(message.channel,MESG.get('nopermit','{0.author.mention} Not allowed.').format(message))
+                        asyncio.ensure_future(message_timeout(msg, 10))
                 else:
                     # Rate-limited
                     pass
             except KeyError:
-                await client.send_message(message.channel, MESG.get('cmd_notfound','`{0}` not found.').format(command_name))
+                msg = await client.send_message(message.channel, MESG.get('cmd_notfound','`{0}` not found.').format(command_name))
+                asyncio.ensure_future(message_timeout(msg, 10))
 
             except Exception as e:
-               await client.send_message(message.channel,MESG.get('error','Error in `{1}`: {0}').format(e,command_name))
+               msg = await client.send_message(message.channel,MESG.get('error','Error in `{1}`: {0}').format(e,command_name))
+               asyncio.ensure_future(message_timeout(msg, 10))
 
     except Exception as e:
         logger.error('error in on_message')
@@ -155,8 +159,8 @@ async def on_message(message):
 @register('test','[list of parameters]',admin=False,rate=1)
 async def test(message,*args):
     """Print debug output"""
-    msg = await client.send_message(message.channel,'```py\n'+str(args)+'\n```\n')
-    asyncio.ensure_future(message_timeout(msg, 5))
+    msg = await client.send_message(message.channel,'```py\n{0}\n```\n```py\n{1}\n```'.format(args,message.attachments))
+    asyncio.ensure_future(message_timeout(msg, 10))
 
 @register('help','[command name]',rate=3)
 async def help(message,*args):
@@ -283,7 +287,7 @@ async def list_reminders(message,*args):
         embed.add_field(name='__Cancelled Reminders__',value=reminders_no)
     
     msg = await client.send_message(message.channel, embed=embed)
-    asyncio.ensure_future(message_timeout(msg, 30))
+    asyncio.ensure_future(message_timeout(msg, 20))
 
 @register('cancelreminder','<reminder id>')
 async def cancel_reminder(message,*args):
@@ -363,7 +367,7 @@ async def speedtest(message):
     try:
         ping = str(round(st.ping(),1))
         logger.info(' -> ping: ' + ping + 'ms')
-        msg = await client.edit_message(msg, MESG.get('st_ping','Speedtest:\nping: {}ms ...').format(ping))
+        msg = await client.edit_message(msg, MESG.get('st_ping','Speedtest:\nping: {0}ms ...').format(ping))
 
         down = str(round(st.download()/1024/1024,2))
         logger.info(' -> download: ' + down + 'Mb/s')
@@ -375,7 +379,8 @@ async def speedtest(message):
 
     except Exception as e:
         logger.exception(e)
-        await client.edit_message(msg, msg.content + MESG.get('st_error','Error.'))
+        msg = await client.edit_message(msg, msg.content + MESG.get('st_error','Error.'))
+        asyncio.ensure_future(message_timeout(msg, 15))
 
 @register('oauth','[OAuth client ID] [server ID]')
 async def oauth_link(message,*args):
