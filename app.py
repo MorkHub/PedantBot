@@ -48,8 +48,9 @@ def register(command_name, *args, **kwargs):
         f.admin = kwargs.get('admin', False)
         f.rate = kwargs.get('rate',0)
         f.invokes = {}
-        if not inspect.getsource(f) in [inspect.getsource(commands[x]) for x in commands]:
-            commands[command_name] = f
+        f.alias_for = kwargs.get('alias',False)
+        
+        commands[command_name] = f
         return f
     return w
 
@@ -116,6 +117,7 @@ async def on_message(message):
             try:
                 inp = message.content.split(' ')
                 command_name, command_args = inp[0][1::].lower(),inp[1::]
+                
                 cmd = commands[command_name]
 
                 last_used = cmd.invokes.get(message.author.id,False)
@@ -142,7 +144,7 @@ async def on_message(message):
                 await client.send_message(message.channel, MESG.get('cmd_notfound','`{0}` not found.').format(command_name))
 
             except Exception as e:
-                await client.send_message(message.channel,MESG.get('error','Error: {0}').format(e))
+               await client.send_message(message.channel,MESG.get('error','Error in `{1}`: {0}').format(e,command_name))
 
     except Exception as e:
         logger.error('error in on_message')
@@ -162,17 +164,43 @@ async def help(message,*args):
     if args == ():
         admin_commands = ''; standard_commands = ''
         for command_name,cmd in sorted(commands.items(),key=lambda x: (x[1].admin,x[0])):
-            if cmd.admin:
-                admin_commands += MESG.get('cmd_doc','{0.command_name}: {0.__doc__}').format(cmd) + "\n"
-            else:
-                standard_commands += MESG.get('cmd_doc','{0.command_name}: {0.__doc__}').format(cmd) + "\n"
+            if cmd.alias_for == False:
+                if cmd.admin:
+                    admin_commands += MESG.get('cmd_doc','{0.command_name}: {0.__doc__}').format(cmd) + "\n"
+                else:
+                    standard_commands += MESG.get('cmd_doc','{0.command_name}: {0.__doc__}').format(cmd) + "\n"
         await client.send_message(message.channel,MESG.get('cmd_list','Commands:\n{0}\nAdmin Commands:\n{1}').format(standard_commands,admin_commands))
     else:
         try:
             cmd = commands[command_name]
             await client.send_message(message.channel,MESG.get('cmd_help','{0.command_name}:\n```{0.usage}: {0.__doc__}```').format(cmd))
         except KeyError:
-            await client.send_message(message.channel,MESG.get('cmd_notfound','`{0}` not found.').format(command_name)) 
+            await client.send_message(message.channel,MESG.get('cmd_notfound','`{0}` not found.').format(command_name))
+
+@register('help2','[command name]',rate=3)
+async def help2(message,*args):
+    """Display help message(s), optionally append command name for specific help"""
+    command_name = ' '.join(args)
+    if args == ():
+        admin_commands = ''; standard_commands = ''
+        for command_name,cmd in sorted(commands.items(),key=lambda x: (x[1].admin,x[0])):
+            if cmd.alias_for == False:
+                if cmd.admin:
+                    admin_commands += '{0.usage}'.format(cmd) + "\n"
+                else:
+                    standard_commands += '{0.usage}'.format(cmd) + "\n"
+
+        embed = discord.Embed(title="Command Help",color=colour(message),description='Prefix: {0}\nUSAGE: {0}command <required> [optional]\nFor more details: {0}help [command] '.format(CONF.get('cmd_pref','/')))
+        embed.add_field(name='Standard Commands',value='```'+standard_commands+'```',inline=True)
+        embed.add_field(name='Admin Commands',value='```'+admin_commands+'```',inline=True)
+
+        await client.send_message(message.channel,embed=embed)
+    else:
+        try:
+            cmd = commands[command_name]
+            await client.send_message(message.channel,MESG.get('cmd_help','{0.command_name}:\n```{0.usage}: {0.__doc__}```').format(cmd))
+        except KeyError:
+            await client.send_message(message.channel,MESG.get('cmd_notfound','`{0}` not found.').format(command_name))
 
 @register('remindme','in <number of> [seconds|minutes|hours]')
 async def remindme(message,*args):
@@ -233,7 +261,7 @@ async def remindme(message,*args):
     reminder['task'] = async_task
 
     logger.info(' -> reminder scheduled for ' + str(datetime.fromtimestamp(remind_timestamp)))
-    await client.send_message(message.channel, message.author.mention + ' Reminder scheduled for ' + datetime.fromtimestamp(remind_timestamp).strftime(dateFormat))
+    await client.send_message(message.channel, message.author.mention + ' Reminder scheduled for ' + datetime.fromtimestamp(remind_timestamp).strftime(CONF.get('date_format','%A %d %B %Y @ %I:%M%p')))
 
     if remind_delta > 15:
         save_reminders()
@@ -243,17 +271,29 @@ async def list_reminders(message,*args):
     logger.info('Listing reminders')
 
     msg = 'Current reminders:\n'
+    reminders_yes = ''; reminders_no = ''
 
     for rem in reminders:
         try:
-            msg += ('~~' if rem.get('is_cancelled',False) else '') + rem['user_name'] + ' at ' + datetime.fromtimestamp(rem['time']).strftime(dateFormat) + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)' + ('~~\n' if rem.get('is_cancelled',False) else '\n')
+            date = datetime.fromtimestamp(rem['time']).strftime(CONF.get('date_format','%A %d %B %Y @ %I:%M%p'))
         except:
-            msg += ('~~' if rem.get('is_cancelled',False) else '') + rem['user_name'] + ' in ' + str(rem['time']) + ' seconds: ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)' + ('~~\n' if rem.get('is_cancelled',False) else '\n')
+            date = str(rem['time'])
+
+        if rem.get('is_cancelled',False):
+            reminders_no += ('~~' if rem.get('is_cancelled',False) else '') + rem['user_name'] + ' at ' + date + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)' + ('~~\n' if rem.get('is_cancelled',False) else '\n')
+        else:
+            reminders_yes += ('~~' if rem.get('is_cancelled',False) else '') + rem['user_name'] + ' at ' + date + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)' + ('~~\n' if rem.get('is_cancelled',False) else '\n')
 
     if len(reminders) == 0:
         msg += 'No reminders'
 
-    await client.send_message(message.channel, msg)
+    embed = discord.Embed(title="Reminders in {}".format(message.channel.name),color=colour(message))
+    if len(reminders_yes) > 0:
+        embed.add_field(name='__Current Reminders__',value=reminders_yes)
+    if len(reminders_no) > 0:
+        embed.add_field(name='__Cancelled Reminders__',value=reminders_no)
+    
+    await client.send_message(message.channel, embed=embed)
 
 @register('cancelreminder','<reminder id>')
 async def cancel_reminder(message,*args):
@@ -268,7 +308,9 @@ async def cancel_reminder(message,*args):
     reminder['is_cancelled'] = True
     reminder['task'].cancel()
 
-    await client.send_message(message.channel,MESG.get('reminder_cancel','Reminder #{1[invoke_time]}for {0} cancelled.').format(datetime.fromtimestamp(rem['time'])).strftime(dateFormat),reminder)
+    #await client.send_message(message.channel,MESG.get('reminder_cancel','Reminder #{1} for {0} cancelled.').format(datetime.fromtimestamp(reminder['time'])).strftime(CONF.get('date_format','%A %d %B %Y @ %I:%M%p')),reminder['invoke_time'])
+    await client.send_message(message.channel,'bye')
+    reminders = [x for x in reminders if x['invoke_time'] != invoke_time]
 
 @register('editreminder', '<reminder ID> <message|timestamp> [data]',rate=3)
 async def edit_reminder(message,*args):
@@ -317,7 +359,6 @@ async def ip(message,*args,admin=True):
 @register('speedtest',admin=True,rate=5)
 async def speedtest(message):
     """Run a speedtest from the bot's LAN."""
-
     st = pyspeedtest.SpeedTest(host='speedtest.as50056.net')
     msg = await client.send_message(message.channel, MESG.get('st_start','Speedtest ...'))
 
@@ -349,7 +390,7 @@ async def oauth_link(message,*args):
 
     await client.send_message(message.channel, discord.utils.oauth_url(client_id if client_id else client.user.id, permissions=discord.Permissions.all(), server=None, redirect_uri=None))
 
-@register('pedant','<term>',rate=5)
+@register('pedant','<term>',rate=5,alias='define')
 @register('define','<term>',rate=5)
 async def define(message, *args):
     """Search for a wikipedia page and show summary"""
@@ -416,15 +457,6 @@ async def random_wiki(message,*args):
     embed.set_footer(text='Requested: random')
 
     await client.send_message(message.channel, embed=embed)
-
-@register('perms',admin=True)
-async def perms(message,*args):
-    """List permissions available to this  bot"""
-    member = message.server.get_member(message.mentions[0].id if len(message.mentions) > 0 else client.user.id)
-    perms = message.channel.permissions_for(member)
-    perms_list = [' '.join(w.capitalize() for w in x[0].split('_')).replace('Tts','TTS') for x in perms if x[1]]
-
-    await client.send_message(message.channel, '**Perms for {0} [{2.value}]:**\n```{1}```'.format(member.name,'\n'.join(perms_list),perms))
 
 @register('shrug')
 async def shrug(message,*args):
@@ -622,7 +654,7 @@ async def quote(message,*args):
     cursor.close()
     cnx.close()
 
-@register('abuse','<channel> <content>',admin=True)
+@register('abuse','<channel> <content>',admin=True,alias='sendmsg')
 @register('sendmsg','<channel> <content>',admin=True)
 async def abuse(message,*args):
     """Harness the power of Discord"""
@@ -639,7 +671,42 @@ async def abuse(message,*args):
     except Exception as e:
         await client.send_message(message.channel,MESG.get('abuse_error','Error.'))
 
-@register('fkoff',admin=True)
+@register('perms',admin=True)
+async def perms(message,*args):
+    """List permissions available to this  bot"""
+    member = message.server.get_member(message.mentions[0].id if len(message.mentions) > 0 else client.user.id)
+    perms = message.channel.permissions_for(member)
+    perms_list = [' '.join(w.capitalize() for w in x[0].split('_')).replace('Tts','TTS') for x in perms if x[1]]
+
+    await client.send_message(message.channel, '**Perms for {0} [{2.value}]:**\n```{1}```'.format(member.name,'\n'.join(perms_list),perms))
+
+@register('kick','@<mention users>',admin=True)
+async def kick(message,*args):
+    """Kicks the specified user from the server"""
+    if len(message.mentions) < 1:
+        return False
+
+    if not message.channel.permissions_for(message.server.get_member(client.user.id)).kick_members:
+        await client.send_message(message.channel, message.author.mention + ', I do not have permission to kick users.')
+
+    members = []
+
+    if not message.channel.is_private and message.channel.permissions_for(message.author).kick_members:
+        for member in message.mentions:
+            if member != message.author:
+                try:
+                    await client.kick(member)
+                    members.append(member.name)
+                except:
+                    pass
+            else:
+                await client.send_message(message.channel, message.author.mention + ', You should not kick yourself from a channel, use the leave button instead.')
+    else:
+        await client.send_message(message.channel, message.author.mention + ', I do not have permission to kick users, or this is a private message channel.')
+
+    await client.send_message(message.channel,'Successfully kicked user(s): `{}`'.format('`, `'.join(members)))
+
+@register('fkoff',admin=True,alias='restart')
 @register('restart',admin=True)
 async def fkoff(message,*args):
     """Restart the bot"""
@@ -654,8 +721,8 @@ async def fkoff(message,*args):
         logger.exception(e)
         pass
 
+@register('calc','<expression>',rate=1,alias='maths')
 @register('maths','<expression>',rate=1)
-@register('calc','<expression>',rate=1)
 async def do_calc(message,*args):
     """Perform mathematical calculation: numbers and symbols (+-*/) allowed only"""
     logger.info('Calc')
