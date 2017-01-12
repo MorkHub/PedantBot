@@ -379,16 +379,20 @@ async def speedtest(message):
         logger.exception(e)
         await client.edit_message(msg, msg.content + MESG.get('st_error','Error.'))
 
-@register('oauth','<OAuth client ID>')
+@register('oauth','[OAuth client ID] [server ID]')
 async def oauth_link(message,*args):
     """Get OAuth invite link"""
     logger.info('OAuth')
-    if len(message.content.split()) > 2:
+    if len(args) > 3:
         return False
 
-    client_id = args[0] if len(args) == 1 else None
+    client_id = args[0] if len(args) > 0 else None
+    server_id = args[1] if len(args) > 1 else None
 
-    await client.send_message(message.channel, discord.utils.oauth_url(client_id if client_id else client.user.id, permissions=discord.Permissions.all(), server=None, redirect_uri=None))
+    await client.send_message(message.channel, discord.utils.oauth_url(client_id if client_id else client.user.id,
+        permissions=discord.Permissions(permissions=1878125639),
+        server=client.get_server(server_id) or message.server,
+        redirect_uri=None))
 
 @register('pedant','<term>',rate=5,alias='define')
 @register('define','<term>',rate=5)
