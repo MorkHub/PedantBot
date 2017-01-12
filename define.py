@@ -813,6 +813,13 @@ async def on_message(message):
             embed.set_footer(text='Love you long thyme')
 
             await client.send_message(message.channel,embed=embed)
+        elif message.content.lower().startswith(cmd_pref + 'servers'):
+           servers = ['•   **{server.name}** (`{server.id}`)'.format(server=x) for x in client.servers]
+
+           embed = discord.Embed(title='Servers {0} is connected to.'.format(client.user),
+               color=colour(message),
+               description='\n'.join(servers))
+           await client.send_message(message.channel,embed=embed) 
 
     except Exception as e:
         logger.error('error in on_message')
