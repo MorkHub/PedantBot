@@ -280,6 +280,8 @@ async def list_reminders(message,*args):
 
 @register('cancelreminder','<reminder id>')
 async def cancel_reminder(message,*args):
+    """Cancel an existing reminder"""
+    global reminders
     if len(args) != 1:
         return
 
@@ -287,12 +289,15 @@ async def cancel_reminder(message,*args):
 
     invoke_time = int(args[0])
 
-    reminder = get_reminder(invoke_time)
-    reminder['is_cancelled'] = True
-    reminder['task'].cancel()
+    try:
+        reminder = get_reminder(invoke_time)
+        reminder['is_cancelled'] = True
+        reminder['task'].cancel()
+    except:
+        await client.send_message(message.channel,'Reminder not found.')
+        return
 
-    #await client.send_message(message.channel,MESG.get('reminder_cancel','Reminder #{1} for {0} cancelled.').format(datetime.fromtimestamp(reminder['time'])).strftime(CONF.get('date_format','%A %d %B %Y @ %I:%M%p')),reminder['invoke_time'])
-    await client.send_message(message.channel,'bye')
+    await client.send_message(message.channel,'Reminder #{0[invoke_time]}: `"{0[message]}"` removed.'.format(reminder))
     reminders = [x for x in reminders if x['invoke_time'] != invoke_time]
 
 @register('editreminder', '<reminder ID> <message|timestamp> [data]',rate=3)
