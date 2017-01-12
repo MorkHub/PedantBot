@@ -131,7 +131,7 @@ async def on_message(message):
                         pass
                     await client.send_typing(message.channel)
 
-                    if not cmd.admin or (cmd.admin and message.author.id in CONF.get('admins',[])):
+                    if not cmd.admin or (cmd.admin and (message.author.id in CONF.get('admins',[]) or message.channel.permissions_for(message.author).admin)):
                         executed = await cmd(message,*command_args)
                         if executed == False:
                             await client.send_message(message.channel,MESG.get('cmd_usage','USAGE: {}.usage').format(cmd))
@@ -166,26 +166,6 @@ async def help(message,*args):
         for command_name,cmd in sorted(commands.items(),key=lambda x: (x[1].admin,x[0])):
             if cmd.alias_for == False:
                 if cmd.admin:
-                    admin_commands += MESG.get('cmd_doc','{0.command_name}: {0.__doc__}').format(cmd) + "\n"
-                else:
-                    standard_commands += MESG.get('cmd_doc','{0.command_name}: {0.__doc__}').format(cmd) + "\n"
-        await client.send_message(message.channel,MESG.get('cmd_list','Commands:\n{0}\nAdmin Commands:\n{1}').format(standard_commands,admin_commands))
-    else:
-        try:
-            cmd = commands[command_name]
-            await client.send_message(message.channel,MESG.get('cmd_help','{0.command_name}:\n```{0.usage}: {0.__doc__}```').format(cmd))
-        except KeyError:
-            await client.send_message(message.channel,MESG.get('cmd_notfound','`{0}` not found.').format(command_name))
-
-@register('help2','[command name]',rate=3)
-async def help2(message,*args):
-    """Display help message(s), optionally append command name for specific help"""
-    command_name = ' '.join(args)
-    if args == ():
-        admin_commands = ''; standard_commands = ''
-        for command_name,cmd in sorted(commands.items(),key=lambda x: (x[1].admin,x[0])):
-            if cmd.alias_for == False:
-                if cmd.admin:
                     admin_commands += '{0.usage}'.format(cmd) + "\n"
                 else:
                     standard_commands += '{0.usage}'.format(cmd) + "\n"
@@ -198,7 +178,10 @@ async def help2(message,*args):
     else:
         try:
             cmd = commands[command_name]
-            await client.send_message(message.channel,MESG.get('cmd_help','{0.command_name}:\n```{0.usage}: {0.__doc__}```').format(cmd))
+            embed = discord.Embed(title="__Help for {0.command_name}__".format(cmd),color=colour(message))
+            embed.add_field(name="Usage",value='```'+cmd.usage+'```')
+            embed.add_field(name="Description",value=cmd.__doc__)
+            await client.send_message(message.channel,embed=embed)
         except KeyError:
             await client.send_message(message.channel,MESG.get('cmd_notfound','`{0}` not found.').format(command_name))
 
@@ -690,6 +673,10 @@ async def kick(message,*args):
     if len(message.mentions) < 1:
         return False
 
+    if message.channel.is_private:
+        await client.send_message(message.channel,'Users cannot be kicked/banned from private channels.')
+        return
+
     if not message.channel.permissions_for(message.server.get_member(client.user.id)).kick_members:
         await client.send_message(message.channel, message.author.mention + ', I do not have permission to kick users.')
 
@@ -709,6 +696,53 @@ async def kick(message,*args):
         await client.send_message(message.channel, message.author.mention + ', I do not have permission to kick users, or this is a private message channel.')
 
     await client.send_message(message.channel,'Successfully kicked user(s): `{}`'.format('`, `'.join(members)))
+
+@register('ban','@<mention users>',admin=True)
+async def ban(message,*args):
+    """Bans the specified user from the server"""
+    if len(message.mentions) < 1:
+        return False
+
+    if message.channel.is_private:
+        await client.send_message(message.channel,'Users cannot be kicked/banned from private channels.')
+        return
+
+    if not message.channel.permissions_for(message.server.get_member(client.user.id)).ban_members:
+        await client.send_message(message.channel, message.author.mention + ', I do not have permission to ban users.')
+
+    members = []
+
+    if message.channel.permissions_for(message.author).ban_members:
+        for member in message.mentions:
+            if member != message.author:
+                try:
+                    await client.ban(member)
+                    members.append(member.name)
+                except:
+                    pass
+            else:
+                await client.send_message(message.channel, message.author.mention + ', You should not ban yourself from a channel, use the leave button instead.')
+    else:
+        await client.send_message(message.channel, message.author.mention + ', I do not have permission to ban users, or this is a private message channel.')
+
+    await client.send_message(message.channel,'Successfully banned user(s): `{}`'.format('`, `'.join(members)))
+
+@register('bans',alias='bannedusers')
+@register('bannedusers')
+async def banned_users(message,*args):
+    """List users that have been banned from this server"""
+    bans = await client.get_bans(message.server)
+
+    if message.channel.is_private:
+        await client.send_message(message.channel,'Users cannot be kicked/banned from private channels.')
+        return
+
+    str = ''
+    for user in bans:
+        str += "• {0.mention} (`{0.name}#{0.discriminator}`): [`{0.id}`]\n".format(user)
+
+    embed = discord.Embed(title="Banned users in {0.name}".format(message.server),color=colour(message),description=str)
+    await client.send_message(message.channel,embed=embed)
 
 @register('fkoff',admin=True,alias='restart')
 @register('restart',admin=True)
