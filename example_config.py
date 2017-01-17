@@ -17,6 +17,14 @@ CONF = {
 	'oauth_token'  : '',
 }
 
+SQL = {
+    'host'   : 'localhost',
+    'db'     : 'pedant',
+    'prefix' : 'pedant_',
+    'user'   : 'pedant',
+    'pass'   : '',
+}
+
 MESG = {
     'error'    : '**Error running command**: {0.args[0]}',
     'nopermit' : '{0.author.mention} is not in the list of sudoers. This incident will be reported.',
