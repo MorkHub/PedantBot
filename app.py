@@ -31,9 +31,10 @@ import MySQLdb
 import wikipedia, wikia
 
 """Initialisation"""
-from pedant_config import CONF,MESG
+from pedant_config import CONF,SQL,MESG
 last_message_time = {}
 reminders = []
+ALLOWED_EMBED_CHARS = ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~'
 
 client = discord.Client()
 
@@ -51,7 +52,7 @@ def register(command_name, *args, **kwargs):
         f.rate = kwargs.get('rate',0)
         f.invokes = {}
         f.alias_for = kwargs.get('alias',False)
-        
+
         commands[command_name] = f
         return f
     return w
@@ -119,14 +120,14 @@ async def on_message(message):
             try:
                 inp = message.content.split(' ')
                 command_name, command_args = inp[0][1::].lower(),inp[1::]
-                
+
                 cmd = commands[command_name]
 
                 last_used = cmd.invokes.get(message.author.id,False)
                 datetime_now = datetime.now()
                 if not last_used or (last_used < datetime_now - timedelta(seconds=cmd.rate)):
                     cmd.invokes[message.author.id] = datetime_now
-							                
+
                     try:
                         await client.delete_message(message)
                     except:
@@ -149,8 +150,9 @@ async def on_message(message):
                 asyncio.ensure_future(message_timeout(msg, 40))
 
             except Exception as e:
-               msg = await client.send_message(message.channel,MESG.get('error','Error in `{1}`: {0}').format(e,command_name))
-               asyncio.ensure_future(message_timeout(msg, 40))
+                logger.exception(e)
+                msg = await client.send_message(message.channel,MESG.get('error','Error in `{1}`: {0}').format(e,command_name))
+                asyncio.ensure_future(message_timeout(msg, 40))
 
     except Exception as e:
         logger.error('error in on_message')
@@ -199,7 +201,9 @@ async def remindme(message,*args):
     if len(args) < 3:
         return False
 
-    if args[0] != 'in' or int(args[1]) <= 0:
+    word_units = {'couple':(2,2),'few':(2,4),'some':(3,5), 'many':(5,15), 'lotsa':(10,30)}
+
+    if args[0] != 'in' or (not args[1] in word_units and int(args[1]) <= 0):
         return False
 
     invoke_time = int(time.time())
@@ -239,6 +243,9 @@ async def remindme(message,*args):
 
     if not reminder_msg:
         return False
+
+    if args[1] in word_units:
+        args[1] = randrange(*word_units[args[1]])
 
     remind_delta = int(args[1]) * unit_mult
     remind_timestamp = invoke_time + remind_delta
@@ -286,7 +293,7 @@ async def list_reminders(message,*args):
         embed.add_field(name='__Current Reminders__',value=reminders_yes)
     if len(reminders_no) > 0:
         embed.add_field(name='__Cancelled Reminders__',value=reminders_no)
-    
+
     msg = await client.send_message(message.channel, embed=embed)
     asyncio.ensure_future(message_timeout(msg, 90))
 
@@ -421,6 +428,7 @@ async def get_invite(message,*args):
     msg = await client.send_message(message.channel,embed=embed)
     asyncio.ensure_future(message_timeout(msg, 120))
 
+@register('watta','<term>',rate=5,alias='define')
 @register('pedant','<term>',rate=5,alias='define')
 @register('define','<term>',rate=5)
 async def define(message, *args):
@@ -428,7 +436,7 @@ async def define(message, *args):
     if not args:
         return False
 
-    term = args[0]
+    term = ' '.join(args)
     search = term
     content = None
     found = False
@@ -658,7 +666,10 @@ async def quote(message,*args):
     """Embed a quote from https://themork.co.uk/quotes"""
     logger.info('Quote')
 
-    id = args[0]
+    try:
+        id = args[0]
+    except:
+        id = ''
 
     cnx = MySQLdb.connect(user='readonly', db='my_themork')
     cursor = cnx.cursor()
@@ -704,10 +715,55 @@ async def connected_servers(message,*args):
     servers = ['•   **{server.name}** (`{server.id}`)'.format(server=x) for x in client.servers]
 
     embed = discord.Embed(title='Servers {0} is connected to.'.format(client.user),
-        color=colour(message),
+        colour=colour(message),
             description='\n'.join(servers))
     msg = await client.send_message(message.channel,embed=embed)
     asyncio.ensure_future(message_timeout(msg, 120))
+
+@register('channels','[server ID]',admin=True)
+async def connected_channels(message,*args):
+    """Displays a list of channels and servers currently available"""
+    embed = discord.Embed(title='Channels {user.name} is conected to.'.format(user=client.user), colour=colour(message))
+    for server in client.servers:
+        embed.add_field(name='**{server.name}** (`{server.id}`)'.format(server=server), value='\n'.join(['•   **{channel.name}** (`{channel.id}`)'.format(channel=x) for x in server.channels if x.type == discord.ChannelType.text]))
+    msg = await client.send_message(message.channel, embed=embed)
+    asyncio.ensure_future(message_timeout(msg, 180))
+
+@register('ranks',admin=True)
+async def server_ranks(message,*args):
+    """Displays a list of ranks in the server"""
+    embed = discord.Embed(title='Ranks for {server.name}.'.format(server=message.server), colour=colour(message))
+    for role in message.server.roles:
+        if not role.is_everyone:
+            members = ['•   **{user.name}** (`{user.id}`)'.format(user=x) for x in message.server.members if role in x.roles]
+            if len(members) > 0:
+                embed.add_field(name='__{role.name}__ ({role.colour} `{role.id}`)'.format(role=role), value='\n'.join(members), inline=False)
+    msg = await client.send_message(message.channel, embed=embed)
+    asyncio.ensure_future(message_timeout(msg, 180))
+
+@register('age',rate=10)
+async def age(message,*args):
+    """Get user's Discord age"""
+    users = []
+    if len(args) < 1:
+        users = message.server.members
+    else:
+        for arg in args:
+            users.append(await client.get_user_info(arg))
+
+    for mention in message.mentions:
+        users.append(mention)
+
+    string = ''
+    for user in users:
+        string += '•  **{user}**:`{user.id}` joined on `{date}`\n'.format(user=user,date=discord.utils.snowflake_time(user.id).strftime('%d %B %Y @ %I:%M%p'))
+
+    embed = discord.Embed(title="Age of users in {server.name}".format(server=message.server),
+        color=colour(message),
+        description=string)
+
+    msg = await client.send_message(message.channel,embed=embed)
+    asyncio.ensure_future(message_timeout(msg, 180))
 
 @register('abuse','<channel> <content>',admin=True,alias='sendmsg')
 @register('sendmsg','<channel> <content>',admin=True)
@@ -722,7 +778,11 @@ async def abuse(message,*args):
     msg = ' '.join(args[1::])
 
     try:
-        await client.send_message(client.get_channel(channel),msg)
+        if channel == 'all':
+            for chan in client.get_all_channels():
+                await client.send_message(client.get_channel(chan),msg)
+        else:
+            await client.send_message(client.get_channel(channel),msg)
     except Exception as e:
         msg = await client.send_message(message.channel,MESG.get('abuse_error','Error.'))
         asyncio.ensure_future(message_timeout(msg, 40))
@@ -787,7 +847,7 @@ async def ban(message,*args):
     if not message.channel.permissions_for(message.server.get_member(client.user.id)).ban_members:
         msg = await client.send_message(message.channel, message.author.mention + ', I do not have permission to ban users.')
         asyncio.ensure_future(message_timeout(msg, 40))
-        return 
+        return
 
     members = []
 
@@ -888,7 +948,7 @@ async def log_exception(e,location=None):
 
 async def message_timeout(message,timeout):
     """Deletes the specified message after the allotted time has passed"""
-    if timeout > 0: 
+    if timeout > 0:
         await asyncio.sleep(timeout)
 
     await client.delete_message(message)
