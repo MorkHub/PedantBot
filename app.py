@@ -443,6 +443,10 @@ async def define(message, *args):
 
     logger.info('Finding definition: "' + term + '"')
 
+    if term == 'baer':
+        await client.send_message(message.channel,'Definition for `baer`:\n```More bae than aforementioned article```')
+        return
+
     if term in special_defs:
         logger.info(' -> Special def')
         content = special_defs[term.lower()]
@@ -598,6 +602,16 @@ async def avatar(message,*args):
     embed.set_image(url=avatar)
     embed.set_footer(text='ID: #{}'.format(user.id))
     await client.send_message(message.channel,embed=embed)
+
+@register('elijah')
+async def alijah(message,*args):
+    """elijah wood"""
+    await client.send_message(message.channel,'https://i.imgur.com/LNtElui.gifv')
+
+@register('woop')
+async def whooup(message, *args):
+    """fingers or something"""
+    await client.send_message(message.channel, 'http://i1.kym-cdn.com/entries/icons/facebook/000/015/721/452.jpg')
 
 @register('vote','"<vote question>" <sequence of emoji responses>',rate=30)
 async def vote(message,*args):
@@ -794,7 +808,7 @@ async def perms(message,*args):
     perms = message.channel.permissions_for(member)
     perms_list = [' '.join(w.capitalize() for w in x[0].split('_')).replace('Tts','TTS') for x in perms if x[1]]
 
-    msg = await client.send_message(message.channel, '**Perms for {user.name} in {server.name}: {2.value}:**\n```{1}```'.format('\n'.join(perms_list),perms,user=member,server=server))
+    msg = await client.send_message(message.channel, "**Perms for {user.name} in {server.name}:** ({1.value})\n```{0}```".format('\n'.join(perms_list),perms,user=member,server=message.server))
     asyncio.ensure_future(message_timeout(msg, 120))
 
 @register('kick','@<mention users>',admin=True)
