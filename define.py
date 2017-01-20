@@ -27,7 +27,7 @@ import pyspeedtest
 import MySQLdb
 import wikipedia, wikia
 
-admins = ['154542529591771136','154543065594462208']
+admins = ['154542529591771136','154543065594462208', '188672208233693184']
 last_message_time = {}
 
 dir_pref = '/home/shwam3/pedant/' if platform.system() == 'Linux' else ''
