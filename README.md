@@ -62,7 +62,7 @@ async def welcome(message,*args):
 | **ping**           | `[<host> [count]]`                         | Test latency by receiving a ping message
 | **test**           | `[list of parameters]`                     | Print debug output
 
-#### Admin
+#### Badmin
 | Command            | Parameters                                 |  Description  |
 | ------------------ | ------------------------------------------ | ------------- |
 | **bannedusers**    |                                            | List users that have been banned from this server
