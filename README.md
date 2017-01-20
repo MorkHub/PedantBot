@@ -5,7 +5,7 @@
 @register('git',owner=False,hidden=False,rate=5)
 async def welcome(message,*args):
   logger.info('{user} wants to view the GitHub repository'.format(user=message.author))
-  await client.send_message(page.body,'Come find out about me at: https://github.com/MorkHub/PedantBot')
+  await client.send_message(message.channel, 'Come find out about me at: https://github.com/MorkHub/PedantBot')
 ```
 ## Contents
 * Add to your server
