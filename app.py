@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-"""Dependencies"""
 from datetime import date
 from datetime import datetime,timedelta
 from threading import Timer
@@ -14,7 +13,7 @@ import math
 import os
 import platform
 import pprint
-import re#eeee
+import re#eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 import string
 import sys
 import time
@@ -24,6 +23,7 @@ import subprocess
 import calendar as cal
 from random import randrange
 
+"""Dependencies"""
 import discord
 import graph
 import pyspeedtest
@@ -195,6 +195,18 @@ async def help(message,*args):
         except KeyError:
             msg = await client.send_message(message.channel,MESG.get('cmd_notfound','`{0}` not found.').format(command_name))
             asyncio.ensure_future(message_timeout(msg, 20))
+
+@register('info',rate=5)
+async def bot_info(message,*args):
+    """Print information about the Application"""
+    me = await client.application_info()
+    owner = me.owner
+    embed = discord.Embed(title=me.name,description=me.description,color=colour(message),timestamp=discord.utils.snowflake_time(me.id))
+    embed.set_thumbnail(url=me.icon_url)
+    embed.set_author(name=owner.name,icon_url=owner.avatar_url or owner.default_avatar_url)
+    embed.set_footer(text="Client ID: {}".format(me.id))
+
+    await client.send_message(message.channel,embed=embed)
 
 @register('remindme','in <number of> [seconds|minutes|hours]')
 async def remindme(message,*args):
@@ -611,7 +623,7 @@ async def alijah(message,*args):
 @register('woop')
 async def whooup(message, *args):
     """fingers or something"""
-    await client.send_message(message.channel, 'http://i1.kym-cdn.com/entries/icons/facebook/000/015/721/452.jpg')
+    await client.send_message(message.channel, 'http://pa1.narvii.com/5668/5027f4002c6394d487e8d20e0514b0b464afa185_hq.gif')
 
 @register('vote','"<vote question>" <sequence of emoji responses>',rate=30)
 async def vote(message,*args):
@@ -685,6 +697,20 @@ async def quote(message,*args):
     except:
         id = ''
 
+    users = {'kush':'94897568776982528',
+             'david b':'240904516269113344',
+             'beard matt':'143529460744978432',
+             'dawid':'184736498824773634',
+             'jaime':'233244375285628928',
+             'oliver barnwell':'188672208233693184',
+             'orane':'',
+             'william':'191332830519885824',
+             'shwam3':'154543065594462208',
+             'themork':'154542529591771136',
+             'wensleydale':'154565902828830720',
+             'minkle':'130527313673584640',
+             }
+
     cnx = MySQLdb.connect(user='readonly', db='my_themork')
     cursor = cnx.cursor()
 
@@ -696,6 +722,13 @@ async def quote(message,*args):
         cursor.execute(query)
 
     for (id,quote,author,date,_,_) in cursor:
+        if author.lower() in users:
+            try:
+                user = message.server.get_member(users[author.lower()])
+                name = user.name
+            except:
+                user = await client.get_user_info(users[author.lower()])
+
         embed = discord.Embed(title='TheMork Quotes',
                                 description=quote,
                                 type='rich',
@@ -704,12 +737,15 @@ async def quote(message,*args):
                                 color=colour(message)
         )
         embed.set_thumbnail(url='https://themork.co.uk/assets/main.png')
-        embed.set_author(name=author)
+        try:
+            embed.set_author(name=user.display_name or user.name,icon_url=user.avatar_url or user.default_avatar_url)
+        except:
+            embed.set_author(name=author)
         embed.set_footer(text='Quote ID: #' + str(id))
 
         await client.send_message(message.channel,embed=embed)
-
         break
+
     cursor.close()
     cnx.close()
 
