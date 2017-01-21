@@ -26,7 +26,7 @@ from morkpy.postfix import calculate
 
 """Dependencies"""
 import discord
-import graph
+import morkpy.graph as graph
 import pyspeedtest
 import MySQLdb
 import wikipedia, wikia
@@ -92,7 +92,7 @@ except Exception as e:
 async def on_ready():
     logger.info('Version ' + CONF.get('VERSION','0.0.0'))
     logger.info('Logged in as:')
-    logger.info(' ->	Name: '+ client.user.name)
+    logger.info(' ->    Name: '+ client.user.name)
     logger.info(' ->    ID: '+ client.user.id)
 
     logger.info('Setting reminders')
