@@ -21,7 +21,7 @@ async def welcome(message,*args):
 	USAGE: \command <required> [optional]
 	For more details: \help [command]
 
-### [Add to your server](https://discordapp.com/oauth2/authorize?client_id=221788578529804288&scope=bot&permissions=1848765527& "Discord invite link")
+### [Add to your server](https://discordapp.com/oauth2/authorize?client_id=221788578529804288&scope=bot&permissions=1848765527 "Discord invite link")
 
 ### Commands
 
