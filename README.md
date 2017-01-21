@@ -1,4 +1,4 @@
-# PedantBot v2.0 [dev]
+# PedantBot v2.0 [beta]
 **NOTE**: This branch contains the latest features as they are added. This means that some features may be missing or broken. Use at your own risk.
 
 ```py
