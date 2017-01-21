@@ -22,6 +22,7 @@ import urllib
 import subprocess
 import calendar as cal
 from random import randrange
+from morkpy.postfix import calculate
 
 """Dependencies"""
 import discord
@@ -49,7 +50,9 @@ def register(command_name, *args, **kwargs):
         f.command_name = command_name
         f.usage = CONF.get('cmd_pref','/') + command_name + (' ' if args != () else '') + ' '.join(args)
         f.admin = kwargs.get('admin', False)
+        f.owner = kwargs.get('owner', False)
         f.rate = kwargs.get('rate',0)
+        f.hidden = kwargs.get('hidden',False)
         f.invokes = {}
         f.alias_for = kwargs.get('alias',False)
 
@@ -133,8 +136,7 @@ async def on_message(message):
                     except:
                         pass
                     await client.send_typing(message.channel)
-
-                    if not cmd.admin or (cmd.admin and message.author.id in CONF.get('admins',[])):
+                    if not cmd.owner or (cmd.owner and message.author.id in CONF.get('owners',[])):
                         executed = await cmd(message,*command_args)
                         if executed == False:
                             msg = await client.send_message(message.channel,MESG.get('cmd_usage','USAGE: {}.usage').format(cmd))
@@ -153,17 +155,30 @@ async def on_message(message):
                 logger.exception(e)
                 msg = await client.send_message(message.channel,MESG.get('error','Error in `{1}`: {0}').format(e,command_name))
                 asyncio.ensure_future(message_timeout(msg, 40))
-
+        else:
+            await do_record(message)
     except Exception as e:
         logger.error('error in on_message')
         logger.exception(e)
         await log_exception(e, 'on_message')
 
 """Commands"""
-@register('test','[list of parameters]',admin=False,rate=1)
+@register('test','[list of parameters]',owner=False,rate=1)
 async def test(message,*args):
     """Print debug output"""
     msg = await client.send_message(message.channel,'```py\n{0}\n```\n```py\n{1}\n```'.format(args,message.attachments))
+
+@register('info',rate=5)
+async def bot_info(message,*args):
+    """Print information about the Application"""
+    me = await client.application_info()
+    owner = me.owner
+    embed = discord.Embed(title=me.name,description=me.description,color=colour(message),timestamp=discord.utils.snowflake_time(me.id))
+    embed.set_thumbnail(url=me.icon_url)
+    embed.set_author(name=owner.name,icon_url=owner.avatar_url or owner.default_avatar_url)
+    embed.set_footer(text="Client ID: {}".format(me.id))
+
+    await client.send_message(message.channel,embed=embed)
 
 @register('help','[command name]',rate=3)
 async def help(message,*args):
@@ -171,9 +186,9 @@ async def help(message,*args):
     command_name = ' '.join(args)
     if args == ():
         admin_commands = ''; standard_commands = ''
-        for command_name,cmd in sorted(commands.items(),key=lambda x: (x[1].admin,x[0])):
-            if cmd.alias_for == False:
-                if cmd.admin:
+        for command_name,cmd in sorted(commands.items(),key=lambda x: (x[1].owner,x[0])):
+            if cmd.alias_for == False and not cmd.hidden:
+                if cmd.owner:
                     admin_commands += '{0.usage}'.format(cmd) + "\n"
                 else:
                     standard_commands += '{0.usage}'.format(cmd) + "\n"
@@ -192,7 +207,8 @@ async def help(message,*args):
             embed.add_field(name="Description",value=cmd.__doc__)
             msg = await client.send_message(message.channel,embed=embed)
             asyncio.ensure_future(message_timeout(msg, 60))
-        except KeyError:
+        except KeyError as e:
+            logger.exception(e)
             msg = await client.send_message(message.channel,MESG.get('cmd_notfound','`{0}` not found.').format(command_name))
             asyncio.ensure_future(message_timeout(msg, 20))
 
@@ -371,15 +387,24 @@ async def ping(message,*args):
     """Test latency by receiving a ping message"""
     await client.send_message(message.channel, MESG.get('ping','Pong.'))
 
-@register('ip', admin=True)
-async def ip(message,*args,admin=True):
+@register('ip', owner=True)
+async def ip(message,*args,owner=True):
     """Looks up external IP of the host machine"""
     response = urllib.request.urlopen('https://api.ipify.org/')
     IP_address = response.read().decode('utf-8')
 
-    await client.send_message(message.channel, MESG.get('ip_addr','IP address: `{0}`').format(IP_address))
+    output = subprocess.run("ip route | awk 'NR==2 {print $NF}'", shell=True, stdout=subprocess.PIPE, universal_newlines=True)
 
-@register('speedtest',admin=True,rate=5)
+    embed = discord.Embed(title="IP address for {user.name}".format(user=client.user),color=colour(message))
+    try:
+        embed.add_field(name='Internal',value='```'+output.stdout+'```')
+    except Exception as e:
+        logger.exception(e)
+    embed.add_field(name='External',value='```'+IP_address+'```')
+
+    await client.send_message(message.channel, embed=embed)
+
+@register('speedtest',owner=True,rate=5)
 async def speedtest(message):
     """Run a speedtest from the bot's LAN."""
     st = pyspeedtest.SpeedTest(host='speedtest.as50056.net')
@@ -415,11 +440,10 @@ async def oauth_link(message,*args):
 
     msg = await client.send_message(message.channel, discord.utils.oauth_url(client_id if client_id else client.user.id,
         permissions=discord.Permissions(permissions=1848765527),
-        server=client.get_server(server_id) or message.server,
         redirect_uri=None))
     asyncio.ensure_future(message_timeout(msg, 120))
 
-@register('invite')
+@register('invites')
 async def get_invite(message,*args):
     """List active invite link for the current server"""
     active_invites = await client.invites_from(message.server)
@@ -538,7 +562,7 @@ async def thyme(message,*args):
 
     await client.send_message(message.channel,embed=embed)
 
-@register('grid','<x> <y>',rate=1)
+@register('grid','<width> <height>',rate=1)
 async def emoji_grid(message,*args):
     """Display a custom-size grid made of server custom emoji"""
     try:
@@ -759,7 +783,7 @@ async def calendar(message,*args):
     msg = await client.send_message(message.channel,embed=embed)
     asyncio.ensure_future(message_timeout(msg, 120))
 
-@register('servers',admin=True)
+@register('servers',owner=True)
 async def connected_servers(message,*args):
     """Lists servers currently connected"""
     servers = ['•   **{server.name}** (`{server.id}`)'.format(server=x) for x in client.servers]
@@ -770,7 +794,7 @@ async def connected_servers(message,*args):
     msg = await client.send_message(message.channel,embed=embed)
     asyncio.ensure_future(message_timeout(msg, 120))
 
-@register('channels','[server ID]',admin=True)
+@register('channels','[server ID]',owner=True)
 async def connected_channels(message,*args):
     """Displays a list of channels and servers currently available"""
     embed = discord.Embed(title='Channels {user.name} is conected to.'.format(user=client.user), colour=colour(message))
@@ -779,7 +803,7 @@ async def connected_channels(message,*args):
     msg = await client.send_message(message.channel, embed=embed)
     asyncio.ensure_future(message_timeout(msg, 180))
 
-@register('ranks',admin=True)
+@register('ranks',owner=True)
 async def server_ranks(message,*args):
     """Displays a list of ranks in the server"""
     embed = discord.Embed(title='Ranks for {server.name}.'.format(server=message.server), colour=colour(message))
@@ -815,8 +839,8 @@ async def age(message,*args):
     msg = await client.send_message(message.channel,embed=embed)
     asyncio.ensure_future(message_timeout(msg, 180))
 
-@register('abuse','<channel> <content>',admin=True,alias='sendmsg')
-@register('sendmsg','<channel> <content>',admin=True)
+@register('abuse','<channel> <content>',owner=True,alias='sendmsg')
+@register('sendmsg','<channel> <content>',owner=True)
 async def abuse(message,*args):
     """Harness the power of Discord"""
     if len(args) < 2:
@@ -837,7 +861,7 @@ async def abuse(message,*args):
         msg = await client.send_message(message.channel,MESG.get('abuse_error','Error.'))
         asyncio.ensure_future(message_timeout(msg, 40))
 
-@register('perms',admin=True)
+@register('perms',owner=True)
 async def perms(message,*args):
     """List permissions available to this  bot"""
     member = message.server.get_member(message.mentions[0].id if len(message.mentions) > 0 else client.user.id)
@@ -847,7 +871,7 @@ async def perms(message,*args):
     msg = await client.send_message(message.channel, "**Perms for {user.name} in {server.name}:** ({1.value})\n```{0}```".format('\n'.join(perms_list),perms,user=member,server=message.server))
     asyncio.ensure_future(message_timeout(msg, 120))
 
-@register('kick','@<mention users>',admin=True)
+@register('kick','@<mention users>',owner=True)
 async def kick(message,*args):
     """Kicks the specified user from the server"""
     if len(message.mentions) < 1:
@@ -883,7 +907,7 @@ async def kick(message,*args):
     msg = await client.send_message(message.channel,'Successfully kicked user(s): `{}`'.format('`, `'.join(members)))
     asyncio.ensure_future(message_timeout(msg, 60))
 
-@register('ban','@<mention users>',admin=True)
+@register('ban','@<mention users>',owner=True)
 async def ban(message,*args):
     """Bans the specified user from the server"""
     if len(message.mentions) < 1:
@@ -938,8 +962,8 @@ async def banned_users(message,*args):
     msg = await client.send_message(message.channel,embed=embed)
     asyncio.ensure_future(message_timeout(msg, 60))
 
-@register('fkoff',admin=True,alias='restart')
-@register('restart',admin=True)
+@register('fkoff',owner=True,alias='restart')
+@register('restart',owner=True)
 async def fkoff(message,*args):
     """Restart the bot"""
     logger.info('Stopping')
@@ -970,8 +994,9 @@ async def do_calc(message,*args):
     else:
         logger.info(' -> ' + str(maths))
         try:
-            await client.send_message(message.channel,'`{} = {}`'.format(maths,eval(maths)))
-        except:
+            await client.send_message(message.channel,'`{} = {}`'.format(maths,calculate(maths)))
+        except Exception as e:
+            logger.exception(e)
             await client.send_message(message.channel, MESG.get('maths_illegal','Error in {0}').format(maths))
 
 """Utility functions"""
@@ -1102,6 +1127,7 @@ if not token:
 """Run program"""
 if __name__ == '__main__':
     try:
+        #service = build('translate', 'v2', developerKey=CONF.get('gapi_key',''))
         client.run(token, bot=True)
         logging.shutdown()
     except Exception as e:
