@@ -1,7 +1,7 @@
 # PedantBot v2.0 [beta]
 **NOTE**: This branch contains the latest features as they are added. This means that some features may be missing or broken. Use at your own risk.
 
-```py
+```python
 @register('git',owner=False,hidden=False,rate=5)
 async def welcome(message,*args):
   logger.info('{user} wants to view the GitHub repository'.format(user=message.author))
