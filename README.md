@@ -1,5 +1,4 @@
 # PedantBot v2.0
-**NOTE**: This branch contains the latest features as they are added. This means that some features may be missing or broken. Use at your own risk.
 
 ```python
 @register('git',owner=False,hidden=False,rate=5)
