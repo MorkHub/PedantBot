@@ -179,6 +179,16 @@ async def bot_info(message,*args):
 
     await client.send_message(message.channel,embed=embed)
 
+@register('git')
+async def git(message,*args):
+    """Get the github URL for this bot"""
+    me = await client.application_info()
+    embed = discord.Embed(title='MorkHub/PedantBot on GitHub',color=message.author.color,description=me.description,url='https://github.com/MorkHub/PedantBot')
+    embed.set_author(name='MorkHub',url='https://github.com/MorkHub/')
+    embed.set_thumbnail(url=me.icon_url)
+
+    await client.send_message(message.channel,embed=embed)
+
 @register('man','[command name]',alias='help',rate=3)
 @register('help','[command name]',rate=3)
 async def help(message,*args):
