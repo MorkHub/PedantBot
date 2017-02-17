@@ -655,6 +655,59 @@ async def whooup(message, *args):
     """fingers or something"""
     await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'woop.gif')
 
+@register('ree','[url true|false]',rate=5)
+async def ree(message, *args):
+    """reeeeeeeeeeeeeeeeeeeeeee"""
+    if len(args) == 1:
+        if args[0].lower() == 'true':
+            await client.send_message(message.channel, 'http://i.imgur.com/y4d4iAO.gif')
+    else:
+        await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'ree.gif')
+
+@register('aesthetic')
+async def aesthetic(message,*args):
+    """A E S T H E T I C"""
+    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'aesthetic.png')
+
+@register('nice')
+async def nice(message,*args):
+    """:point_right: :point_right: nice"""
+    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'nice.png')
+
+@register('nicenice')
+async def nice(message,*args):
+    """:point_right: :point_right: nice"""
+    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'nicenice.png')
+
+@register('oh')
+async def oh(message,*args):
+    """*oh*"""
+    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'oh.png')
+
+@register('feshpince','<part #>',rate=5)
+async def feshpince(message,*args):
+    """Get feshpince up in this"""
+    links = ['https://youtu.be/HeIkk6Yo0s8','https://youtu.be/Drqj67ImtxI']
+    try:
+        url = links[int(args[0]) - 1]
+    except:
+        url = links[0]
+
+    await client.send_message(message.channel,url)
+
+@register('lmgtfy',rate=5)
+async def lmfgty(message,*args):
+    """let me Google that for you"""
+    path = urllib.parse.quote_plus(' '.join(args))
+    await client.send_message(message.channel,'http://lmgtfy.com/?q='+path)
+
+@register('skinnn','',rate=1,alias='skin')
+@register('skinn','',rate=1,alias='skin')
+@register('skin','',rate=1)
+async def skinn_link(message,*args):
+    logger.info('skinnn')
+    await client.send_message(message.channel, 'https://twitter.com/4eyes_/status/805851294292381696')
+
 @register('vote','"<vote question>" <sequence of emoji responses>',rate=30)
 async def vote(message,*args):
     """Initiate a vote using Discord Message Reactions."""
@@ -1007,6 +1060,14 @@ async def do_calc(message,*args):
         except Exception as e:
             logger.exception(e)
             await client.send_message(message.channel, MESG.get('maths_illegal','Error in {0}').format(maths))
+
+@register('skinnn','',rate=1,alias='skin')
+@register('skinn','',rate=1,alias='skin')
+@register('skin','',rate=1)
+async def skinn_link(message,*args):
+    logger.info('skinnn')
+
+    await client.send_message(message.channel, 'https://twitter.com/4eyes_/status/805851294292381696')
 
 """Utility functions"""
 async def log_exception(e,location=None):
