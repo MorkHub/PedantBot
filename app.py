@@ -166,6 +166,11 @@ async def on_message(message):
 async def test(message,*args):
     """Print debug output"""
     msg = await client.send_message(message.channel,'```py\n{0}\n```\n```py\n{1}\n```'.format(args,message.attachments))
+    await client.add_reaction(msg,'🚫')
+    def react(reaction,user):
+        return user != client.user
+    await client.wait_for_reaction(emoji='🚫',message=msg,check=react)
+    await client.delete_message(msg)
 
 @register('info',rate=5)
 async def bot_info(message,*args):
