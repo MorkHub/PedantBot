@@ -126,13 +126,15 @@ async def on_message(message):
 
                 last_used = cmd.invokes.get(message.author.id,False)
                 datetime_now = datetime.now()
+
+                try:
+                    await client.delete_message(message)
+                except:
+                    pass
+
                 if not last_used or (last_used < datetime_now - timedelta(seconds=cmd.rate)):
                     cmd.invokes[message.author.id] = datetime_now
 
-                    try:
-                        await client.delete_message(message)
-                    except:
-                        pass
                     await client.send_typing(message.channel)
                     if not cmd.owner or (cmd.owner and message.author.id in CONF.get('owners',[])):
                         executed = await cmd(message,*command_args)
@@ -240,6 +242,17 @@ async def bot_info(message,*args):
     embed.set_footer(text="Client ID: {}".format(me.id))
 
     await client.send_message(message.channel,embed=embed)
+@register('setnick',rate=10,owner=True)
+async def setnick(message,*args):
+    """Set bot nickname"""
+    nickname = ''.join(args)
+    member = message.server.get_member(client.user.id)
+    try:
+        await client.change_nickname(member,nickname)
+        member = message.server.get_member(client.user.id)
+        await client.send_message(message.channel,'Nickname successfully changed to `{}`'.format(member.nick or member.name))
+    except:
+        await client.send_message(message.channel,'Failed to change nickname!')
 
 @register('remindme','in <number of> [seconds|minutes|hours]')
 async def remindme(message,*args):
