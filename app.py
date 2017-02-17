@@ -197,6 +197,7 @@ async def git(message,*args):
 
     await client.send_message(message.channel,embed=embed)
 
+@register('hlep','[command name]',alias='help',rate=3)
 @register('man','[command name]',alias='help',rate=3)
 @register('help','[command name]',rate=3)
 async def help(message,*args):
