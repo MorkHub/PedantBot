@@ -553,6 +553,52 @@ async def random_wiki(message,*args):
 
     await client.send_message(message.channel, embed=embed)
 
+@register('runescape','<term>',rate=5)
+async def define(message, *args):
+    """Search for a runescape wiki page and show summary"""
+    if not args:
+        return False
+
+    term = ' '.join(args)
+    search = term
+    content = None
+    found = False
+
+    logger.info('Finding definition: "' + term + '"')
+
+    try:
+        if not found:
+            arts = wikia.search('runescape',term)
+            if len(arts) == 0:
+                logger.info(' -> No results found')
+                msg = await client.send_message(message.channel, MESG.get('define_none','`{0}` not found.').format(term))
+                asyncio.ensure_future(message_timeout(msg, 40))
+                return
+            else:
+                logger.info(' -> Wikia page')
+                try:
+                    content = wikia.page('runescape',arts[0])
+                except wikia.DisambiguationError as de:
+                    logger.info(' -> ambiguous wiki page')
+                    content = wikia.page('runescape',de.options[0])
+
+        logger.info(' -> Found stuff')
+        embed = discord.Embed(title=''.join([x for x in content.title if x in ALLOWED_EMBED_CHARS] or 'No title found.'),
+                              url=re.sub(' ','%20',content.url),
+                              description='{:.1600}'.format(''.join([x for x in content.summary if x in ALLOWED_EMBED_CHARS]) or 'No description found.'),
+                              color=message.author.color,
+                              timestamp=message.timestamp,
+                             )
+        embed.set_footer(text='Runescape Wiki',icon_url='http://vignette3.wikia.nocookie.net/runescape2/images/6/64/Favicon.ico')
+        if len(content.images) >= 1:
+            embed.set_thumbnail(url=content.images[0])
+
+        await client.send_message(message.channel,embed=embed)
+    except Exception as e:
+        logger.exception(e)
+        msg = await client.send_message(message.channel,MESG.get('define_error','Error searching for {0}').format(term))
+        asyncio.ensure_future(message_timeout(msg, 40))
+
 @register('shrug')
 async def shrug(message,*args):
     """Send a shrug: mobile polyfill"""
