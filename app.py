@@ -655,6 +655,16 @@ async def avatar(message,*args):
     embed.set_footer(text='ID: #{}'.format(user.id))
     await client.send_message(message.channel,embed=embed)
 
+@register('serveravatar', rate=5)
+async def serveravatar(message,*args):
+    """Show the avatar for the current server"""
+    server = message.server
+    avatar = server.icon_url
+    embed = discord.Embed(title='Image for {server.name}'.format(server=server), color=message.author.color)
+    embed.set_image(url=avatar)
+
+    await client.send_message(message.channel,embed=embed)
+
 @register('elijah')
 async def elijah(message,*args):
     """elijah wood"""
