@@ -30,6 +30,7 @@ from morkpy.postfix import calculate
 import pyspeedtest
 import MySQLdb
 import wikipedia, wikia
+import urbandict
 
 """Initialisation"""
 from pedant_config import CONF,SQL,MESG
