@@ -599,6 +599,20 @@ async def define(message, *args):
         msg = await client.send_message(message.channel,MESG.get('define_error','Error searching for {0}').format(term))
         asyncio.ensure_future(message_timeout(msg, 40))
 
+@register('urban',rate=5)
+async def urban(message,*args):
+    """Lookup a term/phrase on urban dictionary"""
+    definitions = urbandict.define(' '.join(args))
+    definition = definitions[randrange(len(definitions))]
+    for i in definition:
+        definition[i] = re.sub(r'/\n+/','\\n',definition[i])
+
+    embed = discord.Embed(title=''.join([x for x in definition['word'].title() if x in ALLOWED_EMBED_CHARS]), color=message.author.color, url='http://www.urbandictionary.com/define.php?term='+re.sub(' ','%20',definition['word']),description=definition.get('def','no definition found'),timestamp=datetime.now())
+    embed.set_footer(text='Urban Dictionary',icon_url='http://d2gatte9o95jao.cloudfront.net/assets/apple-touch-icon-2f29e978facd8324960a335075aa9aa3.png')
+    if re.sub('\n','',definition['example']) != '':
+        embed.add_field(name='Example',value=definition.get('example','No example found'))
+    await client.send_message(message.channel,embed=embed)
+
 @register('shrug')
 async def shrug(message,*args):
     """Send a shrug: mobile polyfill"""
