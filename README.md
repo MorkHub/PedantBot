@@ -1,4 +1,5 @@
-# PedantBot v2.0
+# PedantBot v2.0 [beta]
+**NOTE**: This branch contains the latest features as they are added. This means that some features may be missing or broken. Use at your own risk.
 
 ```python
 @register('git',owner=False,hidden=False,rate=5)
@@ -20,7 +21,7 @@ async def welcome(message,*args):
 	USAGE: \command <required> [optional]
 	For more details: \help [command]
 
-### [Add to your server](https://discordapp.com/oauth2/authorize?client_id=221788578529804288&scope=bot&permissions=1848765527 "Discord invite link")
+### [Add to your server](https://discordapp.com/oauth2/authorize?client_id=169112287297142784&scope=bot&permissions=1848765527 "Discord invite link")
 
 ### Commands
 
