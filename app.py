@@ -22,11 +22,11 @@ import urllib
 import subprocess
 import calendar as cal
 from random import randrange
-from morkpy.postfix import calculate
 
 """Dependencies"""
 import discord
 import morkpy.graph as graph
+from morkpy.postfix import calculate
 import pyspeedtest
 import MySQLdb
 import wikipedia, wikia
@@ -36,7 +36,6 @@ from pedant_config import CONF,SQL,MESG
 last_message_time = {}
 reminders = []
 ALLOWED_EMBED_CHARS = ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~'
-
 client = discord.Client()
 
 """Command registration framework"""
@@ -75,7 +74,6 @@ try:
     formatter = logging.Formatter(CONF.get('log_format','[%(asctime)s] [%(levelname)s] %(message)s'))
     log_handler.setFormatter(formatter)
     err_log_handler.setFormatter(formatter)
-
 
     if os.path.isfile(CONF.get('dir_pref','/home/shwam3/')+CONF.get('logfile','{}.log'.format(__file__))):
         log_handler.doRollover()
@@ -156,7 +154,8 @@ async def on_message(message):
                 msg = await client.send_message(message.channel,MESG.get('error','Error in `{1}`: {0}').format(e,command_name))
                 asyncio.ensure_future(message_timeout(msg, 40))
         else:
-            await do_record(message)
+            #await do_record(message)
+            pass
     except Exception as e:
         logger.error('error in on_message')
         logger.exception(e)
@@ -173,13 +172,14 @@ async def bot_info(message,*args):
     """Print information about the Application"""
     me = await client.application_info()
     owner = me.owner
-    embed = discord.Embed(title=me.name,description=me.description,color=colour(message),timestamp=discord.utils.snowflake_time(me.id))
+    embed = discord.Embed(title=me.name,description=me.description,color=message.author.color,timestamp=discord.utils.snowflake_time(me.id))
     embed.set_thumbnail(url=me.icon_url)
     embed.set_author(name=owner.name,icon_url=owner.avatar_url or owner.default_avatar_url)
     embed.set_footer(text="Client ID: {}".format(me.id))
 
     await client.send_message(message.channel,embed=embed)
 
+@register('man','[command name]',alias='help',rate=3)
 @register('help','[command name]',rate=3)
 async def help(message,*args):
     """Display help message(s), optionally append command name for specific help"""
@@ -193,16 +193,18 @@ async def help(message,*args):
                 else:
                     standard_commands += '{0.usage}'.format(cmd) + "\n"
 
-        embed = discord.Embed(title="Command Help",color=colour(message),description='Prefix: {0}\nUSAGE: {0}command <required> [optional]\nFor more details: {0}help [command] '.format(CONF.get('cmd_pref','/')))
+        embed = discord.Embed(title="Command Help",color=message.author.color,description='Prefix: {0}\nUSAGE: {0}command <required> [optional]\nFor more details: {0}help [command] '.format(CONF.get('cmd_pref','/')))
         embed.add_field(name='Standard Commands',value='```'+standard_commands+'```',inline=True)
-        embed.add_field(name='Admin Commands',value='```'+admin_commands+'```',inline=True)
+        if message.author.id in CONF.get('owners',[]):
+          embed.add_field(name='Admin Commands',value='```'+admin_commands+'```',inline=True)
+        embed.add_field(name='Discord Help',value='If you need help using Discord, the Help Center may be useful for you.\nhttps://support.discordapp.com/')
 
         msg = await client.send_message(message.channel,embed=embed)
         asyncio.ensure_future(message_timeout(msg,120))
     else:
         try:
             cmd = commands[command_name]
-            embed = discord.Embed(title="__Help for {0.command_name}__".format(cmd),color=colour(message))
+            embed = discord.Embed(title="__Help for {0.command_name}__".format(cmd),color=message.author.color)
             embed.add_field(name="Usage",value='```'+cmd.usage+'```')
             embed.add_field(name="Description",value=cmd.__doc__)
             msg = await client.send_message(message.channel,embed=embed)
@@ -217,7 +219,7 @@ async def bot_info(message,*args):
     """Print information about the Application"""
     me = await client.application_info()
     owner = me.owner
-    embed = discord.Embed(title=me.name,description=me.description,color=colour(message),timestamp=discord.utils.snowflake_time(me.id))
+    embed = discord.Embed(title=me.name,description=me.description,color=message.author.color,timestamp=discord.utils.snowflake_time(me.id))
     embed.set_thumbnail(url=me.icon_url)
     embed.set_author(name=owner.name,icon_url=owner.avatar_url or owner.default_avatar_url)
     embed.set_footer(text="Client ID: {}".format(me.id))
@@ -316,7 +318,7 @@ async def list_reminders(message,*args):
     if len(reminders) == 0:
         msg += 'No reminders'
 
-    embed = discord.Embed(title="Reminders in {}".format(message.channel.name),color=colour(message))
+    embed = discord.Embed(title="Reminders in {}".format(message.channel.name),color=message.author.color)
     if len(reminders_yes) > 0:
         embed.add_field(name='__Current Reminders__',value=reminders_yes)
     if len(reminders_no) > 0:
@@ -395,7 +397,7 @@ async def ip(message,*args,owner=True):
 
     output = subprocess.run("ip route | awk 'NR==2 {print $NF}'", shell=True, stdout=subprocess.PIPE, universal_newlines=True)
 
-    embed = discord.Embed(title="IP address for {user.name}".format(user=client.user),color=colour(message))
+    embed = discord.Embed(title="IP address for {user.name}".format(user=client.user),color=message.author.color)
     try:
         embed.add_field(name='Internal',value='```'+output.stdout+'```')
     except Exception as e:
@@ -428,7 +430,7 @@ async def speedtest(message):
         msg = await client.edit_message(msg, msg.content + MESG.get('st_error','Error.'))
         asyncio.ensure_future(message_timeout(msg, 20))
 
-@register('oauth','[OAuth client ID] [server ID]')
+@register('oauth','[OAuth client ID] [ ID]')
 async def oauth_link(message,*args):
     """Get OAuth invite link"""
     logger.info('OAuth')
@@ -453,7 +455,7 @@ async def get_invite(message,*args):
     limited_invites   = [  '{0.url}: `{0.channel}` created by `{0.inviter}`'.format(x) for x in active_invites if x.max_age != 0 and x not in revoked_invites]
 
     embed = discord.Embed(title='__Invite links for {0.name}__'.format(message.server),
-        color=colour(message))
+        color=message.author.color)
     if unlimited_invites:
         embed.add_field(name='Unlimited Invites',value='\n'.join(unlimited_invites))
     if limited_invites:
@@ -509,10 +511,12 @@ async def define(message, *args):
                     content = wikipedia.summary(de.options[0], chars=750)
 
         logger.info(' -> Found stuff')
-        embed = discord.Embed(title=MESG.get('define_title','{0}').format(term),
+        embed = discord.Embed(title=MESG.get('define_title','{0}').format(search),
                               description=''.join([x for x in content if x in ALLOWED_EMBED_CHARS]),
-                              color=colour(message)
+                              color=message.author.color,
+                              timestamp=message.timestamp,
                              )
+        embed.set_footer(text='Wikipedia',icon_url='https://en.wikipedia.org/static/apple-touch/wikipedia.png')
 
         await client.send_message(message.channel,embed=embed)
     except Exception as e:
@@ -531,7 +535,7 @@ async def random_wiki(message,*args):
                             type='rich',
                             url='https://en.wikipedia.org/wiki/'+term,
                             description=''.join(x for x in wikipedia.summary(term, chars=450) if x in ALLOWED_EMBED_CHARS),
-                            color=colour(message)
+                            color=message.author.color
                          )
     embed.set_thumbnail(url='https://en.wikipedia.org/static/images/project-logos/enwiki.png')
     embed.set_author(name=term)
@@ -542,13 +546,13 @@ async def random_wiki(message,*args):
 @register('shrug')
 async def shrug(message,*args):
     """Send a shrug: mobile polyfill"""
-    embed = discord.Embed(title=message.author.name+' sent something:',description='¯\_(ツ)_/¯',color=colour(message),timestamp=datetime.now())
+    embed = discord.Embed(title=message.author.name+' sent something:',description='¯\_(ツ)_/¯',color=message.author.color,timestamp=datetime.now())
     await client.send_message(message.channel,embed=embed)
 
 @register('wrong')
 async def wrong(message,*args):
     """Send the WRONG! image"""
-    embed = discord.Embed(title='THIS IS WRONG!',color=colour(message))
+    embed = discord.Embed(title='THIS IS WRONG!',color=message.author.color)
     embed.set_image(url='http://i.imgur.com/CMBlDO2.png')
 
     await client.send_message(message.channel,embed=embed)
@@ -556,7 +560,7 @@ async def wrong(message,*args):
 @register('thyme')
 async def thyme(message,*args):
     """Send some thyme to your friends"""
-    embed = discord.Embed(title='Thyme',timestamp=message.edited_timestamp or message.timestamp,color=colour(message))
+    embed = discord.Embed(title='Thyme',timestamp=message.edited_timestamp or message.timestamp,color=message.author.color)
     embed.set_image(url='http://shwam3.altervista.org/thyme/image.jpg')
     embed.set_footer(text='{} loves you long thyme'.format(message.author.name))
 
@@ -589,7 +593,7 @@ async def emoji_grid(message,*args):
 @register('showemoji')
 async def showemoji(message,*args):
     """Displays all available custom emoji in this server"""
-    await client.send_message(message.channel,' '.join(['{}'.format('<:{}:{}>'.format(emoji.name,emoji.id),emoji.name) for emoji in message.server.emojis]))
+    await client.send_message(message.channel,' '.join(['<:{0.name}:{0.id}>'.format(emoji) for emoji in message.server.emojis]))
 
 @register('bigger','<custom server emoji>')
 async def bigger(message,*args):
@@ -606,16 +610,17 @@ async def bigger(message,*args):
         logger.info(' -> ' + thisEmoji)
 
     useEmoji = None
-    for emoji in message.server.emojis:
-        if str(emoji).lower() == thisEmoji.lower():
-            useEmoji = emoji
+    for server in client.servers:
+        for emoji in server.emojis:
+            if str(emoji).lower() == thisEmoji.lower():
+                useEmoji = emoji
 
     emoji = useEmoji
     if useEmoji != None:
         logger.info(' -> id: ' + emoji.id)
         logger.info(' -> url: ' + emoji.url)
 
-        embed = discord.Embed(title=emoji.name,color=colour(message))
+        embed = discord.Embed(title=emoji.name,color=message.author.color)
         embed.set_image(url=emoji.url)
         embed.set_footer(text='ID #'+emoji.id)
 
@@ -633,21 +638,22 @@ async def avatar(message,*args):
     user = message.mentions[0]
     name = user.nick or user.name
     avatar = user.avatar_url or user.default_avatar_url
+    avatar = re.sub('https:\/\/discordapp.com\/api\/users\/([^\/]+)\/avatars\/([^\/]+)\.jpg','https://images.discordapp.net/avatars/\g<1>/\g<2>.gif',avatar)
 
-    embed = discord.Embed(title=name,type='rich',colour=colour(message))
+    embed = discord.Embed(title=name,type='rich',colour=colour(message),url=avatar)
     embed.set_image(url=avatar)
     embed.set_footer(text='ID: #{}'.format(user.id))
     await client.send_message(message.channel,embed=embed)
 
 @register('elijah')
-async def alijah(message,*args):
+async def elijah(message,*args):
     """elijah wood"""
-    await client.send_message(message.channel,'https://i.imgur.com/LNtElui.gifv')
+    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'elijah.gif')
 
 @register('woop')
 async def whooup(message, *args):
     """fingers or something"""
-    await client.send_message(message.channel, 'http://pa1.narvii.com/5668/5027f4002c6394d487e8d20e0514b0b464afa185_hq.gif')
+    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'woop.gif')
 
 @register('vote','"<vote question>" <sequence of emoji responses>',rate=30)
 async def vote(message,*args):
@@ -758,7 +764,7 @@ async def quote(message,*args):
                                 type='rich',
                                 url='https://themork.co.uk/quotes/?q='+ str(id),
                                 timestamp=datetime(*date.timetuple()[:-4]),
-                                color=colour(message)
+                                color=message.author.color
         )
         embed.set_thumbnail(url='https://themork.co.uk/assets/main.png')
         try:
@@ -779,7 +785,7 @@ async def calendar(message,*args):
     today = datetime.now()
     embed = discord.Embed(title='Calender for {0.month}/{0.year}'.format(today),
         description='```\n{0}\n```'.format(cal.month(today.year,today.month)),
-        color=colour(message))
+        color=message.author.color)
     msg = await client.send_message(message.channel,embed=embed)
     asyncio.ensure_future(message_timeout(msg, 120))
 
@@ -823,7 +829,10 @@ async def age(message,*args):
         users = message.server.members
     else:
         for arg in args:
-            users.append(await client.get_user_info(arg))
+            if arg == 'me':
+                users.append(message.author)
+            else:
+                users.append(await client.get_user_info(arg))
 
     for mention in message.mentions:
         users.append(mention)
@@ -833,7 +842,7 @@ async def age(message,*args):
         string += '•  **{user}**:`{user.id}` joined on `{date}`\n'.format(user=user,date=discord.utils.snowflake_time(user.id).strftime('%d %B %Y @ %I:%M%p'))
 
     embed = discord.Embed(title="Age of users in {server.name}".format(server=message.server),
-        color=colour(message),
+        color=message.author.color,
         description=string)
 
     msg = await client.send_message(message.channel,embed=embed)
@@ -958,7 +967,7 @@ async def banned_users(message,*args):
     for user in bans:
         str += "• {0.mention} (`{0.name}#{0.discriminator}`): [`{0.id}`]\n".format(user)
 
-    embed = discord.Embed(title="Banned users in {0.name}".format(message.server),color=colour(message),description=str)
+    embed = discord.Embed(title="Banned users in {0.name}".format(message.server),color=message.author.color,description=str)
     msg = await client.send_message(message.channel,embed=embed)
     asyncio.ensure_future(message_timeout(msg, 60))
 
@@ -1000,16 +1009,6 @@ async def do_calc(message,*args):
             await client.send_message(message.channel, MESG.get('maths_illegal','Error in {0}').format(maths))
 
 """Utility functions"""
-def colour(message=None):
-    """Return user's primary role colour"""
-    try:
-        if message:
-            return sorted([x for x in message.author.roles if x.colour != discord.Colour.default()], key=lambda x: -x.position)[0].colour
-    except:
-        pass
-
-    return discord.Colour.default()
-
 async def log_exception(e,location=None):
     """Log exceptions nicely"""
     try:
@@ -1056,7 +1055,19 @@ async def do_reminder(client, invoke_time):
         logger.info('Reminder ready')
         logger.info(' -> ' + reminder['user_mention'] + ': ' + reminder['message'])
 
-        await client.send_message(client.get_channel(reminder['channel_id']), reminder['user_mention'] + ': ' + reminder['message'])
+        #await client.send_message(client.get_channel(reminder['channel_id']), reminder['user_mention'] + ': ' + reminder['message'])
+        try:
+            chan = client.get_channel(reminder['channel_id'])
+            user = chan.server.get_member(re.findall('<@!?([0-9]+)>',reminder['user_mention'])[0])
+        except Exception as e:
+            user = discord.User()
+            user.name = "Unknown User"
+
+        d = datetime.fromtimestamp(reminder['time'])
+        embed = discord.Embed(title="Reminder for {}".format(d.strftime('%I:%M%p GMT+00')),description=reminder['message'],timestamp=d,color=user.color)
+        embed.set_footer(text="PedantBot Reminders",icon_url=client.user.avatar_url or client.user.default_avatar_url)
+        embed.set_author(name=user.nick or user.name,icon_url=user.avatar_url or user.default_avatar_url)
+        await client.send_message(client.get_channel(reminder['channel_id']),reminder['user_mention'],embed=embed)
     except asyncio.CancelledError as e:
         cancel_ex = e
         reminder = get_reminder(invoke_time)
@@ -1065,6 +1076,8 @@ async def do_reminder(client, invoke_time):
             await client.send_message(client.get_channel(reminder['channel_id']), 'Reminder for '+reminder['user_name']+' in '+str(reminder['time']-int(time.time()))+' secs cancelled')
         else:
             logger.info(' -> reminder ' + str(invoke_time) + ' removed')
+    except Exception as e:
+        logger.exception(e)
 
     if reminder['cancelled']:
         reminders.remove(reminder)
