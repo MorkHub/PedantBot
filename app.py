@@ -647,6 +647,15 @@ async def wrong(message,*args):
 
     await client.send_message(message.channel,embed=embed)
 
+@register('notwrong')
+async def wrong(message,*args):
+    """Send CORRECT! image"""
+    embed = discord.Embed(title='THIS IS NOT WRONG!',color=message.author.color)
+    embed.set_image(url='https://i.imgur.com/nibZI2D.png')
+
+    await client.send_message(message.channel,embed=embed)
+
+
 @register('thyme')
 async def thyme(message,*args):
     """Send some thyme to your friends"""
@@ -807,6 +816,11 @@ async def lmfgty(message,*args):
 async def skinn_link(message,*args):
     logger.info('skinnn')
     await client.send_message(message.channel, 'https://twitter.com/4eyes_/status/805851294292381696')
+
+@register('this')
+async def oh(message,*args):
+    """^"""
+    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'this.png')
 
 @register('vote','"<vote question>" <sequence of emoji responses>',rate=30)
 async def vote(message,*args):
