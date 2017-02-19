@@ -56,6 +56,7 @@ def register(command_name, *args, **kwargs):
         f.hidden = kwargs.get('hidden',False)
         f.invokes = {}
         f.alias_for = kwargs.get('alias',False)
+        f.typing = kwargs.get('typing',True)
 
         commands[command_name] = f
         return f
@@ -139,7 +140,8 @@ async def on_message(message):
                 if not last_used or (last_used < datetime_now - timedelta(seconds=cmd.rate)):
                     cmd.invokes[message.author.id] = datetime_now
 
-                    await client.send_typing(message.channel)
+                    if cmd.typing:
+                        await client.send_typing(message.channel)
                     if not cmd.owner or (cmd.owner and message.author.id in CONF.get('owners',[])):
                         executed = await cmd(message,*command_args)
                         if executed == False:
@@ -813,12 +815,12 @@ async def nicememe(message,*args):
         player.volume = 0.5
         player.start()
 
-@register('play','<audio track>')
+@register('play','<audio track>',typing=False)
 async def play_audio(message,*args):
     """play audio in voice channel"""
     if len(args) < 1:
         files = glob.glob('sounds/*.mp3')
-        embed = discord.Embed(title="Available Audio Files",description="```\n{}```".format('\n'.join([x for x in files])),color=message.author.color)
+        embed = discord.Embed(title="Available Audio Files",description="```\n{}```".format('\n'.join([x.replace('sounds/','').replace('.mp3','') for x in files])),color=message.author.color)
         await client.send_message(message.channel,embed=embed)
         return
 
