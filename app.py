@@ -22,6 +22,7 @@ import urllib
 import subprocess
 import calendar as cal
 from random import randrange
+import glob
 
 """Dependencies"""
 import discord
@@ -816,7 +817,10 @@ async def nicememe(message,*args):
 async def play_audio(message,*args):
     """play audio in voice channel"""
     if len(args) < 1:
-        return False
+        files = glob.glob('sounds/*.mp3')
+        embed = discord.Embed(title="Available Audio Files",description="```\n{}```".format('\n'.join([x for x in files])),color=message.author.color)
+        await client.send_message(message.channel,embed=embed)
+        return
 
     if not os.path.isfile(CONF.get('dir_pref','/home/shwam3/') + 'sounds/{}.mp3'.format(args[0])):
         await client.send_message(message.channel,'Audio track `{}` not found.'.format(args[0]))
