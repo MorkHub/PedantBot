@@ -810,10 +810,30 @@ async def nicememe(message,*args):
         player = client.voice.create_ffmpeg_player('/home/mark/Documents/pedant/nicememe.mp3')
         player.volume = 0.5
         player.start()
-        while not player.is_done():
-            asyncio.sleep(1)
-        await client.voice.disconnect()
-        client.voice = None
+
+@register('play','<audio track>')
+async def play_audio(message,*args):
+    """play audio in voice channel"""
+    if len(args) < 1:
+        return False
+
+    if not os.path.isfile(CONF.get('dir_pref','/home/shwam3/') + 'sounds/{}.mp3'.format(args[0])):
+        await client.send_message(message.channel,'Audio track `{}` not found.'.format(args[0]))
+        return
+
+    if not client.voice:
+        for chan in message.server.channels:
+            if chan.type == discord.ChannelType.voice and message.author in chan.voice_members:
+                client.voice = await client.join_voice_channel(chan)
+
+    if client.voice:
+        player = client.voice.create_ffmpeg_player(CONF.get('dir_pref','/home/shwam3/') + 'sounds/{}.mp3'.format(args[0]))
+        player.volume = 0.75
+        player.start()
+        #while not player.is_done():
+            #asyncio.sleep(1)
+        #await client.voice.disconnect()
+        #client.voice = None
 
 @register('feshpince','<part #>',rate=5)
 async def feshpince(message,*args):
