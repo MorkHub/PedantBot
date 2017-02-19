@@ -199,6 +199,7 @@ async def git(message,*args):
 
     await client.send_message(message.channel,embed=embed)
 
+@register('hlep','[command name]',alias='help',rate=3)
 @register('man','[command name]',alias='help',rate=3)
 @register('help','[command name]',rate=3)
 async def help(message,*args):
@@ -838,6 +839,11 @@ async def lmfgty(message,*args):
 async def skinn_link(message,*args):
     logger.info('skinnn')
     await client.send_message(message.channel, 'https://twitter.com/4eyes_/status/805851294292381696')
+
+@register('this')
+async def oh(message,*args):
+    """^"""
+    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'this.png')
 
 @register('vote','"<vote question>" <sequence of emoji responses>',rate=30)
 async def vote(message,*args):
