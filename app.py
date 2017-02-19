@@ -110,6 +110,8 @@ async def on_ready():
     except:
         pass
 
+    client.voice = None
+
 """Respond to messages"""
 @client.event
 async def on_message(message):
@@ -646,6 +648,14 @@ async def wrong(message,*args):
 
     await client.send_message(message.channel,embed=embed)
 
+@register('notwrong')
+async def wrong(message,*args):
+    """Send CORRECT! image"""
+    embed = discord.Embed(title='THIS IS NOT WRONG!',color=message.author.color)
+    embed.set_image(url='https://i.imgur.com/nibZI2D.png')
+
+    await client.send_message(message.channel,embed=embed)
+
 @register('thyme')
 async def thyme(message,*args):
     """Send some thyme to your friends"""
@@ -782,6 +792,28 @@ async def nice(message,*args):
 async def oh(message,*args):
     """*oh*"""
     await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'oh.png')
+
+@register('nicememe',owner=True,rate=5)
+async def nicememe(message,*args):
+    """say nice meme"""
+    try:
+        client.voice = await client.join_voice_channel(message.server.get_channel(args[0]))
+    except:
+        pass
+
+    if not client.voice:
+        for chan in message.server.channels:
+            if chan.type == discord.ChannelType.voice and message.author in chan.voice_members:
+                client.voice = await client.join_voice_channel(chan)
+
+    if client.voice:
+        player = client.voice.create_ffmpeg_player('/home/mark/Documents/pedant/nicememe.mp3')
+        player.volume = 0.5
+        player.start()
+        while not player.is_done():
+            asyncio.sleep(1)
+        await client.voice.disconnect()
+        client.voice = None
 
 @register('feshpince','<part #>',rate=5)
 async def feshpince(message,*args):
