@@ -638,6 +638,27 @@ async def urban(message,*args):
         embed.add_field(name='Example',value=definition.get('example','No example found'))
     await client.send_message(message.channel,embed=embed)
 
+@register('imdb',rate=5,alias="ombd")
+@register('omdb',rate=5)
+async def imdb_search(message,*args):
+    """Search OMDb for a film"""
+    term = ' '.join(args)
+    try:
+        movie = json.loads(urllib.request.urlopen('https://www.omdbapi.com/?i={}&tomatoes=true'.format(list(filter(lambda r: re.match('[a-z]{2}[\d]{7}',r['id']),json.loads(re.sub('imdb\${}\((.*)\)'.format(term),'\\1',urllib.request.urlopen('http://sg.media-imdb.com/suggests/{0[0]}/{0}.json'.format(term)).read().decode('utf8')))['d']))[0]['id'])).read().decode('utf8'))
+        embed = discord.Embed(title="{} ({})".format(movie['Title'],movie['Year']),description=movie['Plot'],url='http://www.imdb.com/title/{}/'.format(movie['imdbID']),color=message.author.color)
+        embed.set_image(url=movie['Poster'])
+        embed.set_footer(text="The Open Movie Database",icon_url="http://ia.media-imdb.com/images/G/01/imdb/images/logos/imdb_fb_logo-1730868325._CB522736557_.png")
+        embed.add_field(name="Genres",value=movie['Genre'].replace(', ','\n'))
+        embed.add_field(name="Cast",value="{}".format(movie['Actors'].replace(', ','\n')))
+        embed.add_field(name="Reviews",value="Metascore: `{}`\nRotten Tomatoes: `{}`\nIMDb: `{}`".format(movie['Metascore'],movie['tomatoMeter'],movie['imdbRating']))
+    except:
+        pass
+
+    if 'embed' in locals():
+        await client.send_message(message.channel,embed=embed)
+    else:
+        await client.send_message(message.channel,'No results found for `{}`'.format(term))
+
 @register('shrug')
 async def shrug(message,*args):
     """Send a shrug: mobile polyfill"""
