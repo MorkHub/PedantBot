@@ -818,6 +818,11 @@ async def oh(message,*args):
     """*oh*"""
     await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'oh.png')
 
+@register('cummies')
+async def oh(message,*args):
+    """cummies"""
+    await client.send_message(message.channel,'cummies')
+
 @register('nicememe',owner=True,rate=5)
 async def nicememe(message,*args):
     """say nice meme"""
@@ -976,6 +981,7 @@ async def quote(message,*args):
              'themork':'154542529591771136',
              'wensleydale':'154565902828830720',
              'minkle':'130527313673584640',
+             'chris':'192671450388234240'
              }
 
     cnx = MySQLdb.connect(user='readonly', db='my_themork')
@@ -1040,7 +1046,7 @@ async def connected_servers(message,*args):
 @register('channels','[server ID]',owner=True)
 async def connected_channels(message,*args):
     """Displays a list of channels and servers currently available"""
-    embed = discord.Embed(title='Channels {user.name} is conected to.'.format(user=client.user), colour=colour(message))
+    embed = discord.Embed(title='Channels {user.name} is conected to.'.format(user=client.user), colour=message.author.color)
     for server in client.servers:
         embed.add_field(name='**{server.name}** (`{server.id}`)'.format(server=server), value='\n'.join(['•   **{channel.name}** (`{channel.id}`)'.format(channel=x) for x in server.channels if x.type == discord.ChannelType.text]))
     msg = await client.send_message(message.channel, embed=embed)
