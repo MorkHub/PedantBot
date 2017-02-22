@@ -12,6 +12,7 @@ CONF = {
 	'logfile'      : 'pedant.log',
 	'date_format'  : '%A %d %B %Y @ %I:%M%p',
 	'VERSION'      : '2.1.0',
+	'dad'          : True,
 }
 
 SQL = {

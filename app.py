@@ -162,12 +162,18 @@ async def on_message(message):
                 msg = await client.send_message(message.channel,MESG.get('error','Error in `{1}`: {0}').format(e,command_name))
                 asyncio.ensure_future(message_timeout(msg, 40))
         else:
-            #await do_record(message)
-            pass
+            #await client.send_message(message.channel,''.join(x for x in message.content if not x in string.punctuation).lower().strip())
+            if CONF.get('dad',False):
+                filtered = re.findall(r"(I'?m|I ?am) ([^,\.]+)",message.content,re.I)[0]
+                if filtered:
+                    await client.send_typing(message.channel)
+                    await client.send_message(message.channel,"Hi {}, I am Dad. Nice to meet you.".format(filtered[1]))
+
     except Exception as e:
         logger.error('error in on_message')
         logger.exception(e)
         await log_exception(e, 'on_message')
+
 
 """Commands"""
 @register('test','[list of parameters]',owner=False,rate=1)
