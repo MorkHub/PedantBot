@@ -19,3 +19,4 @@ tokens.txt
 reminders.txt
 *.log*
 pedant_config.py
+*.mp3
