@@ -355,7 +355,8 @@ async def list_reminders(message,*args):
     if len(reminders) == 0:
         msg += 'No reminders'
 
-    embed = discord.Embed(title="Reminders in {}".format(message.channel.name),color=message.author.color)
+    embed = discord.Embed(title="Reminders in {}".format(message.server.name),color=message.author.color,description='No reminders set' if (len(reminders_yes)==0 and len(reminders_no)==0) else discord.Embed.Empty)
+    embed.set_footer(icon_url=message.server.icon_url,text='{:.16} | PedantBot Reminders'.format(message.server.name))
     if len(reminders_yes) > 0:
         embed.add_field(name='__Current Reminders__',value=reminders_yes)
     if len(reminders_no) > 0:
@@ -683,7 +684,7 @@ async def imdb_search(message,*args):
             embed.add_field(inline=False,name="[{}] __{} - **{}** *[{}]*__".format(i,_movie.get('q','Unkown Type').title(),_movie.get('l','Unknown Title'),_movie.get('y','Unknown Year')),value='**Starring:** {:.200}'.format(_movie.get('s','cast unavailable')))
 
         msg = await client.send_message(message.channel,embed=embed)
-        res = await client.wait_for_message(3,author=message.author,channel=message.channel,check=lambda m: m.content.isnumeric() and int(m.content) < len(movies))
+        res = await client.wait_for_message(20,author=message.author,channel=message.channel,check=lambda m: m.content.isnumeric() and int(m.content) < len(movies))
         if res:
             await client.delete_message(res)
             movie = movies[int(res.content)]
@@ -880,6 +881,11 @@ async def oh(message,*args):
     """*oh*"""
     await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'oh.png')
 
+@register('cummies')
+async def oh(message,*args):
+    """cummies"""
+    await client.send_message(message.channel,'cummies')
+
 @register('java')
 async def java(message,*args):
     """how many layers of abstraction are you on"""
@@ -1051,6 +1057,7 @@ async def quote(message,*args):
              'themork':'154542529591771136',
              'wensleydale':'154565902828830720',
              'minkle':'130527313673584640',
+             'chris':'192671450388234240'
              }
 
     cnx = MySQLdb.connect(user='readonly', db='my_themork')
@@ -1115,7 +1122,7 @@ async def connected_servers(message,*args):
 @register('channels','[server ID]',owner=True)
 async def connected_channels(message,*args):
     """Displays a list of channels and servers currently available"""
-    embed = discord.Embed(title='Channels {user.name} is conected to.'.format(user=client.user), colour=colour(message))
+    embed = discord.Embed(title='Channels {user.name} is conected to.'.format(user=client.user), colour=message.author.color)
     for server in client.servers:
         embed.add_field(name='**{server.name}** (`{server.id}`)'.format(server=server), value='\n'.join(['•   **{channel.name}** (`{channel.id}`)'.format(channel=x) for x in server.channels if x.type == discord.ChannelType.text]))
     msg = await client.send_message(message.channel, embed=embed)
