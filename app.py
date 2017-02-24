@@ -127,7 +127,12 @@ async def on_message(message):
                 inp = message.content.split(' ')
                 command_name, command_args = inp[0][1::].lower(),inp[1::]
 
-                cmd = commands[command_name]
+                if command_name in commands:
+                    cmd = commands[command_name]
+                else:
+                    msg = await client.send_message(message.channel, MESG.get('cmd_notfound','`{0}` not found.').format(command_name))
+                    asyncio.ensure_future(message_timeout(msg, 40))
+                    return False
 
                 last_used = cmd.invokes.get(message.author.id,False)
                 datetime_now = datetime.now()
@@ -153,27 +158,18 @@ async def on_message(message):
                 else:
                     # Rate-limited
                     pass
-            except KeyError:
-                msg = await client.send_message(message.channel, MESG.get('cmd_notfound','`{0}` not found.').format(command_name))
-                asyncio.ensure_future(message_timeout(msg, 40))
 
             except Exception as e:
                 logger.exception(e)
                 msg = await client.send_message(message.channel,MESG.get('error','Error in `{1}`: {0}').format(e,command_name))
                 asyncio.ensure_future(message_timeout(msg, 40))
         else:
-            #await client.send_message(message.channel,''.join(x for x in message.content if not x in string.punctuation).lower().strip())
-            if CONF.get('dad',False):
-                filtered = re.findall(r"(I'?m|I ?am) ([^,\.]+)",message.content,re.I)[0]
-                if filtered:
-                    await client.send_typing(message.channel)
-                    await client.send_message(message.channel,"Hi {}, I am Dad. Nice to meet you.".format(filtered[1]))
+            pass
 
     except Exception as e:
         logger.error('error in on_message')
         logger.exception(e)
         await log_exception(e, 'on_message')
-
 
 """Commands"""
 @register('test','[list of parameters]',owner=False,rate=1)
@@ -352,9 +348,9 @@ async def list_reminders(message,*args):
             date = str(rem['time'])
 
         if rem.get('is_cancelled',False):
-            reminders_no += ('~~' if rem.get('is_cancelled',False) else '') + rem['user_name'] + ' at ' + date + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)' + ('~~\n' if rem.get('is_cancelled',False) else '\n')
+            reminders_no += '~~' + rem['user_name'] + ' at ' + date + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)~~\n'
         else:
-            reminders_yes += ('~~' if rem.get('is_cancelled',False) else '') + rem['user_name'] + ' at ' + date + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)' + ('~~\n' if rem.get('is_cancelled',False) else '\n')
+            reminders_yes += rem['user_name'] + ' at ' + date + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)\n'
 
     if len(reminders) == 0:
         msg += 'No reminders'
@@ -630,40 +626,100 @@ async def define(message, *args):
         msg = await client.send_message(message.channel,MESG.get('define_error','Error searching for {0}').format(term))
         asyncio.ensure_future(message_timeout(msg, 40))
 
-@register('urban',rate=5)
+@register('urban',rate=3)
 async def urban(message,*args):
     """Lookup a term/phrase on urban dictionary"""
+    definition = None; msg = None
     definitions = urbandict.define(' '.join(args))
-    definition = definitions[randrange(len(definitions))]
+    if len(definitions) > 1:
+        embed = discord.Embed(title="Multiple definitions for __{}__".format(' '.join(args)),color=message.author.color,timestamp=message.timestamp)
+        embed.set_footer(text='Urban Dictionary',icon_url='http://d2gatte9o95jao.cloudfront.net/assets/apple-touch-icon-2f29e978facd8324960a335075aa9aa3.png')
+        for i in range(min(5,len(definitions))):
+            _def = definitions[i]
+            embed.add_field(name="`[{}]` **{}**".format(i,_def.get('word','none').title().replace('\n','')),value='```{:.200}```'.format(_def.get('def','no definition found')))
+
+        msg = await client.send_message(message.channel,embed=embed)
+        res = await client.wait_for_message(20,author=message.author,channel=message.channel,check=lambda m: m.content.isnumeric() and int(m.content) < len(definitions))
+        if res:
+            await client.delete_message(res)
+            definition = definitions[int(res.content)]
+
+    if not definition:
+        definition = definitions[0]
+
     for i in definition:
         definition[i] = re.sub(r'/\n+/','\\n',definition[i])
 
-    embed = discord.Embed(title=''.join([x for x in definition['word'].title() if x in ALLOWED_EMBED_CHARS]), color=message.author.color, url='http://www.urbandictionary.com/define.php?term='+re.sub(' ','%20',definition['word']),description=definition.get('def','no definition found'),timestamp=datetime.now())
+    embed = discord.Embed(title=''.join([x for x in definition['word'].title() if x in ALLOWED_EMBED_CHARS]), color=message.author.color, url='http://www.urbandictionary.com/define.php?term='+re.sub(' ','%20',definition['word']),description=definition.get('def','no definition found'),timestamp=message.timestamp)
     embed.set_footer(text='Urban Dictionary',icon_url='http://d2gatte9o95jao.cloudfront.net/assets/apple-touch-icon-2f29e978facd8324960a335075aa9aa3.png')
     if re.sub('\n','',definition['example']) != '':
         embed.add_field(name='Example',value=definition.get('example','No example found'))
-    await client.send_message(message.channel,embed=embed)
+
+    if msg:
+        await client.edit_message(msg,embed=embed)
+    else:
+        await client.send_message(message.channel,embed=embed)
 
 @register('imdb',rate=5,alias="ombd")
 @register('omdb',rate=5)
 async def imdb_search(message,*args):
     """Search OMDb for a film"""
-    term = ' '.join(args)
-    try:
-        movie = json.loads(urllib.request.urlopen('https://www.omdbapi.com/?i={}&tomatoes=true'.format(list(filter(lambda r: re.match('[a-z]{2}[\d]{7}',r['id']),json.loads(re.sub('imdb\${}\((.*)\)'.format(term),'\\1',urllib.request.urlopen('http://sg.media-imdb.com/suggests/{0[0]}/{0}.json'.format(term)).read().decode('utf8')))['d']))[0]['id'])).read().decode('utf8'))
-        embed = discord.Embed(title="{} ({})".format(movie['Title'],movie['Year']),description=movie['Plot'],url='http://www.imdb.com/title/{}/'.format(movie['imdbID']),color=message.author.color)
-        embed.set_image(url=movie['Poster'])
+    term = ' '.join(args).strip().lower()
+    raw = urllib.request.urlopen('http://sg.media-imdb.com/suggests/{0[0]}/{0}.json'.format(term.replace(' ','%20'))).read().decode('utf8')
+    result = json.loads(re.sub('imdb\${}\((.*)\)'.format(term.replace(' ','_')),'\\1',raw))
+
+    if not 'd' in result:
+        await client.send_message(message.channel,'No results for `{}`'.format(term))
+        return
+
+    movies = list(filter(lambda r: re.match('[a-z]{2}[\d]{7}',r['id']),result['d']))
+    movie = None; msg = None
+
+    if len(movies) > 1:
+        embed = discord.Embed(title="Multiple results for __{}__".format(term),color=message.author.color,timestamp=message.timestamp)
         embed.set_footer(text="The Open Movie Database",icon_url="http://ia.media-imdb.com/images/G/01/imdb/images/logos/imdb_fb_logo-1730868325._CB522736557_.png")
-        embed.add_field(name="Genres",value=movie['Genre'].replace(', ','\n'))
-        embed.add_field(name="Cast",value="{}".format(movie['Actors'].replace(', ','\n')))
-        embed.add_field(name="Reviews",value="Metascore: `{}`\nRotten Tomatoes: `{}`\nIMDb: `{}`".format(movie['Metascore'],movie['tomatoMeter'],movie['imdbRating']))
+        for i in range(min(5,len(movies))):
+            _movie = movies[i]
+            embed.add_field(inline=False,name="[{}] __{} - **{}** *[{}]*__".format(i,_movie.get('q','Unkown Type').title(),_movie.get('l','Unknown Title'),_movie.get('y','Unknown Year')),value='**Starring:** {:.200}'.format(_movie.get('s','cast unavailable')))
+
+        msg = await client.send_message(message.channel,embed=embed)
+        res = await client.wait_for_message(3,author=message.author,channel=message.channel,check=lambda m: m.content.isnumeric() and int(m.content) < len(movies))
+        if res:
+            await client.delete_message(res)
+            movie = movies[int(res.content)]
+
+    if not movie:
+        movie = movies[0]
+
+    movie = json.loads(urllib.request.urlopen('https://www.omdbapi.com/?i={}&tomatoes=true'.format(movie['id'])).read().decode('utf8'))
+    for key in movie:
+        if movie[key] == 'N/A' or movie[key] == '':
+            movie[key] = None
+
+    try:
+        embed = discord.Embed(title="{} ({})".format(movie['Title'] or 'Unknown Title',movie['Year'] or 'Unknown Year'),description=movie['Plot'] or 'Plot Unavailable',url='http://www.imdb.com/title/{}/'.format(movie['imdbID']),color=message.author.color)
+        embed.set_footer(text="The Open Movie Database",icon_url="http://ia.media-imdb.com/images/G/01/imdb/images/logos/imdb_fb_logo-1730868325._CB522736557_.png")
+        if movie['Poster']:
+            embed.set_image(url=movie['Poster'])
+        if 'Genre' in movie:
+            embed.add_field(name="Genres",value=movie['Genre'].replace(', ','\n'))
+        if 'Actors' in movie:
+            embed.add_field(name="Cast",value="{}".format(movie['Actors'].replace(', ','\n')))
+        ratings = ''
+        for service in [('Metacritic','Metascore','%'),('Rotten Tomatoes','tomatoMeter','%'),('IMDb','imdbRating','/10')]:
+            if service[1] in movie and movie[service[1]]:
+                ratings += '{}: `{}{}`\n'.format(service[0],str(movie[service[1]]),service[2])
+        if ratings:
+            embed.add_field(name="Reviews",value=ratings)
     except:
         pass
 
-    if 'embed' in locals():
-        await client.send_message(message.channel,embed=embed)
-    else:
-        await client.send_message(message.channel,'No results found for `{}`'.format(term))
+    if 'embed' in locals() and embed:
+        if msg:
+            await client.edit_message(msg,embed=embed)
+        else:
+            await client.edit_message(msg,embed=embed)
+
 
 @register('shrug')
 async def shrug(message,*args):
@@ -823,6 +879,19 @@ async def nice(message,*args):
 async def oh(message,*args):
     """*oh*"""
     await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'oh.png')
+
+@register('java')
+async def java(message,*args):
+    """how many layers of abstraction are you on"""
+    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'java.png')
+
+@register('i\'m','<name>',alias='dad')
+@register('im','<name>',alias='dad')
+@register('iam','<name>',alias='dad')
+@register('dad','<name>')
+async def dad_joke(message,*args):
+    """dad jokes my dude"""
+    await client.send_message(message.channel,"Hi {:.20}, I am Dad. Nice to meet you.".format(' '.join(args)))
 
 @register('nicememe',owner=True,rate=5)
 async def nicememe(message,*args):
