@@ -749,7 +749,7 @@ async def thyme(message,*args):
     """Send some thyme to your friends"""
     embed = discord.Embed(title='Thyme',timestamp=message.edited_timestamp or message.timestamp,color=message.author.color)
     embed.set_image(url='http://shwam3.altervista.org/thyme/image.jpg')
-    embed.set_footer(text='{} loves you long thyme'.format(message.author.name))
+    embed.set_footer(text='{} loves you long thyme'.format(member.nick or member.name))
 
     await client.send_message(message.channel,embed=embed)
 
@@ -827,7 +827,7 @@ async def avatar(message,*args):
     avatar = user.avatar_url or user.default_avatar_url
     avatar = re.sub('https:\/\/discordapp.com\/api\/users\/([^\/]+)\/avatars\/([^\/]+)\.jpg','https://images.discordapp.net/avatars/\g<1>/\g<2>.gif',avatar)
 
-    embed = discord.Embed(title=name,type='rich',colour=colour(message),url=avatar)
+    embed = discord.Embed(title=name,type='rich',colour=message.author.color,url=avatar)
     embed.set_image(url=avatar)
     embed.set_footer(text='ID: #{}'.format(user.id))
     await client.send_message(message.channel,embed=embed)
@@ -890,6 +890,11 @@ async def oh(message,*args):
 async def java(message,*args):
     """how many layers of abstraction are you on"""
     await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'java.png')
+
+@register('g2a')
+async def g2a_is_bad(message,*args):
+    """g2a is bad kys"""
+    await client.send_message(message.channel,"https://www.reddit.com/r/pcmasterrace/comments/5rm2f7/g2a_has_flaw_in_their_system_pointed_out_to_them/")
 
 @register('i\'m','<name>',alias='dad')
 @register('im','<name>',alias='dad')
