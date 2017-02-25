@@ -543,18 +543,21 @@ async def define(message, *args):
             else:
                 logger.info(' -> Wiki page')
                 try:
-                    content = wikipedia.summary(arts[0], chars=750)
+                    content = wikipedia.page(arts[0])
                 except wikipedia.DisambiguationError as de:
                     logger.info(' -> ambiguous wiki page')
-                    content = wikipedia.summary(de.options[0], chars=750)
+                    content = wikipedia.page(de.options[0])
 
         logger.info(' -> Found stuff')
-        embed = discord.Embed(title=MESG.get('define_title','{0}').format(search),
-                              description=''.join([x for x in content if x in ALLOWED_EMBED_CHARS]),
+        embed = discord.Embed(title=MESG.get('define_title','{0}').format(search.title()),
+                              url=content.url,
+                              description=''.join([x for x in content.summary[:1000] + bool(content.summary[1000:]) * '...' if x in ALLOWED_EMBED_CHARS]),
                               color=message.author.color,
                               timestamp=message.timestamp,
                              )
         embed.set_footer(text='Wikipedia',icon_url='https://en.wikipedia.org/static/apple-touch/wikipedia.png')
+        if len(content.images) > 0:
+            embed.set_thumbnail(url=content.images[0])
 
         await client.send_message(message.channel,embed=embed)
     except Exception as e:
