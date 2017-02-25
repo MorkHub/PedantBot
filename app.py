@@ -1122,24 +1122,67 @@ async def connected_servers(message,*args):
     servers = ['•   **{server.name}** (`{server.id}`)'.format(server=x) for x in client.servers]
 
     embed = discord.Embed(title='Servers {0} is connected to.'.format(client.user),
-        colour=colour(message),
-            description='\n'.join(servers))
+                          colour=message.author.color,
+                          description='\n'.join(servers))
     msg = await client.send_message(message.channel,embed=embed)
     asyncio.ensure_future(message_timeout(msg, 120))
 
-@register('channels','[server ID]',owner=True)
+@register('channels',owner=True)
 async def connected_channels(message,*args):
     """Displays a list of channels and servers currently available"""
-    embed = discord.Embed(title='Channels {user.name} is conected to.'.format(user=client.user), colour=message.author.color)
-    for server in client.servers:
-        embed.add_field(name='**{server.name}** (`{server.id}`)'.format(server=server), value='\n'.join(['•   **{channel.name}** (`{channel.id}`)'.format(channel=x) for x in server.channels if x.type == discord.ChannelType.text]))
+    servers = [c for c in client.servers]
+
+    currentServer = servers[0]
+    currentIndex = servers.index(currentServer)
+
+    embed = discord.Embed(title='Channels {user.name} is conected to. ({0})'.format(len(servers),user=client.user),
+                          colour=message.author.color,
+                          description='\n'.join([('•   **{channel.name}** (`{channel.id}`)'+('"{channel.topic}"' if x.topic and x.topic != "None" else '')).format(channel=x) for x in currentServer.channels if x.type == discord.ChannelType.text])
+                         )
+    embed.set_footer(text=('<- {} | '.format(servers[currentIndex -1].name) if currentIndex > 0 else '') + '{}'.format(currentServer.name) + (' |  {} ->'.format(servers[currentIndex + 1].name) if currentIndex < len(servers)-1 else ''))
+
     msg = await client.send_message(message.channel, embed=embed)
-    asyncio.ensure_future(message_timeout(msg, 180))
+    await client.add_reaction(msg,'👈')
+    await client.add_reaction(msg,'👉')
+    await client.add_reaction(msg,'🚫')
+
+    def check(reation,user):
+        return user != client.user
+
+    listening = True
+    while listening:
+        res = await client.wait_for_reaction(['👈','👉','🚫'],message=msg,check=check,timeout=30)
+        if res:
+            emoji = res.reaction.emoji
+            await client.remove_reaction(msg,emoji,res.user)
+            if emoji == '🚫':
+                listening = False
+                await client.delete_message(msg)
+                return
+            elif emoji == '👈':
+                if currentIndex > 0:
+                    currentIndex -= 1
+                    currentServer = servers[currentIndex]
+            elif emoji == '👉':
+                if currentIndex < len(servers)-1:
+                    currentIndex += 1
+                    currentServer = servers[currentIndex]
+
+            embed.title = "Channels in {server.name}".format(server=currentServer)
+            embed.description = '\n'.join(['•   **{channel.name}** (`{channel.id}`) "{channel.topic}"'.format(channel=x) for x in currentServer.channels if x.type == discord.ChannelType.text])
+            embed.set_footer(text=('Prev: {} | '.format(servers[currentIndex -1].name) if currentIndex > 0 else '') + 'Current: {}'.format(currentServer.name) + (' |  Next: {}'.format(servers[currentIndex + 1].name) if currentIndex < len(servers)-1 else ''))
+            await client.edit_message(msg, embed=embed)
+        else:
+            listening = False
+    try:
+        await client.clear_reactions(msg)
+    except:
+        pass
 
 @register('ranks',owner=True)
 async def server_ranks(message,*args):
     """Displays a list of ranks in the server"""
-    embed = discord.Embed(title='Ranks for {server.name}.'.format(server=message.server), colour=colour(message))
+    embed = discord.Embed(title='Ranks for {server.name}.'.format(server=message.server), colour=message.author.color)
     for role in message.server.roles:
         if not role.is_everyone:
             members = ['•   **{user.name}** (`{user.id}`)'.format(user=x) for x in message.server.members if role in x.roles]
