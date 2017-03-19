@@ -1391,6 +1391,22 @@ async def age(message,*args):
     msg = await client.send_message(message.channel,embed=embed)
     asyncio.ensure_future(message_timeout(msg, 180))
 
+@register('purge','[message limit]',rate=5)
+async def purge(message,*args):
+    """delete all messages"""
+    deleted = []
+    limit = 500
+    if len(args) > 0 and args[0].isnumeric():
+        limit = int(args[0])
+    if isadmin(message.author) and message.server.id != '154543502313652224':
+        try:
+            deleted = await client.purge_from(message.channel,limit=limit)
+        except:
+            pass
+        await client.send_message(message.channel,'Purged {} messages from {}.'.format(len(deleted),message.channel.mention))
+    else:
+        await client.send_message(message.channel,"Fuck off with that, you don't have permission to purge {}".format(message.channel.mention))
+
 @register('clean','[number of messages]',owner=True,rate=10,typing=False)
 async def clean(message,*args):
     """delete bot messages"""
@@ -1586,7 +1602,7 @@ def isowner(user=discord.User()):
 
 def isadmin(member):
     """returns True if the user is in the list of sudoers, or is an admin in the current server"""
-    return member.server_permissions.administrator or isowner(member)
+    return member.server_permissions.administrator
 
 async def message_timeout(message,timeout):
     """Deletes the specified message after the allotted time has passed"""
