@@ -313,7 +313,7 @@ async def setnick(message,*args):
     except:
         await client.send_message(message.channel,'Failed to change nickname!')
 
-@register('remindme','in <number of> [seconds|minutes|hours]')
+@register('remindme','in <number of> [seconds|minutes|hours|days]')
 async def remindme(message,*args):
     if len(args) < 3:
         return False
