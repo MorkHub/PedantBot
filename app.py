@@ -171,6 +171,37 @@ async def on_message(message):
         logger.exception(e)
         await log_exception(e, 'on_message')
 
+async def toggle_deafen(user):
+    """toggles mute/deafen every few seconds"""
+    await asyncio.sleep(randrange(7,15))
+
+    try:
+        await client.server_voice_state(user,mute=not user.voice.mute,deafen=not user.voice.deaf)
+        logger.info(' -> Toggled {} to {},{}'.format(user,'muted' if user.voice.mute else 'unmuted','deafened' if user.voice.deaf else 'undeafened'))
+        sleepies[user.id] = asyncio.ensure_future(toggle_deafen(user))
+    except:
+        t = sleepies.get(user.id,False)
+        if t:
+            t.cancel()
+        pass
+
+sleepies = {}
+@client.event
+async def on_voice_state_update(before,after):
+    roles = []
+    def bed_role(role=None):
+        if not role:
+            return False
+        return role.name == "gotobed"
+
+    for server in client.servers:
+        roles += list(filter(bed_role, server.roles))
+
+    if 0 < datetime.now().hour < 7 and not set(after.roles).isdisjoint(roles):
+        if after.voice != None and (before.voice == None or before.voice.voice_channel != after.voice.voice_channel) and not after.id in sleepies:
+            logger.info(' -> doing the thing for {}'.format(after))
+            sleepies[after.id] = asyncio.ensure_future(toggle_deafen(after))
+
 """Commands"""
 @register('test','[list of parameters]',owner=False,rate=1)
 async def test(message,*args):
