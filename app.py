@@ -842,6 +842,7 @@ async def showemoji(message,*args):
     """Displays all available custom emoji in this server"""
     await client.send_message(message.channel,' '.join(['<:{0.name}:{0.id}>'.format(emoji) for emoji in message.server.emojis]))
 
+@register('bigly','<custom server emoji>',alias='bigger')
 @register('bigger','<custom server emoji>')
 async def bigger(message,*args):
     """Display a larger image of the specified emoji"""
