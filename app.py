@@ -925,20 +925,25 @@ async def nice(message,*args):
     """:point_right: :point_right: nice"""
     await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'nice.png')
 
+@register('ncie')
+async def ncie(message,*args):
+    """:point_right: :point_right: ncie"""
+    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'ncie.png')
+
 @register('nicenice')
-async def nice(message,*args):
+async def nicenice(message,*args):
     """:point_right: :point_right: nice"""
     await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'nicenice.png')
+
+@register('nicenicenice')
+async def nicenicenice(message,*args):
+    """:point_right: :point_right: nice"""
+    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'nicenicenice.gif')
 
 @register('oh')
 async def oh(message,*args):
     """*oh*"""
     await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'oh.png')
-
-@register('cummies')
-async def oh(message,*args):
-    """cummies"""
-    await client.send_message(message.channel,'cummies')
 
 @register('java')
 async def java(message,*args):
@@ -950,6 +955,26 @@ async def g2a_is_bad(message,*args):
     """g2a is bad kys"""
     await client.send_message(message.channel,"https://www.reddit.com/r/pcmasterrace/comments/5rm2f7/g2a_has_flaw_in_their_system_pointed_out_to_them/")
 
+@register('cummies')
+async def sex(message,*args):
+    """cummies"""
+    await client.send_message(message.channel,'https://open.spotify.com/album/1HDC77tWM1eN43XXLG7eZq')
+
+@register('eww')
+async def sex(message,*args):
+    """terrible"""
+    await client.send_file(message.channel,"eww.png")
+
+@register('bbc')
+async def bbc(message,*args):
+    """oh fuck what now"""
+    await client.send_file(message.channel,"bbc.png")
+
+@register('doe')
+async def doe(message,*args):
+    """what you want doe"""
+    await client.send_file(message.channel,"doe.png")
+
 @register('i\'m','<name>',alias='dad')
 @register('im','<name>',alias='dad')
 @register('iam','<name>',alias='dad')
@@ -957,6 +982,54 @@ async def g2a_is_bad(message,*args):
 async def dad_joke(message,*args):
     """dad jokes my dude"""
     await client.send_message(message.channel,"Hi {:.20}, I am Dad. Nice to meet you.".format(' '.join(args)))
+
+@register('needsmorejpeg','[JPEG quality 1-100]',rate=10)
+async def jpeg(message,*args):
+    """adds more jpeg to the last image the app can find"""
+    messages = client.messages; messages.reverse()
+    def get(url):
+        return urllib.request.urlopen(urllib.request.Request(url,data=None,headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36'}))
+    def image_embed(embed):
+        return embed.get('type','') == 'image'
+    def filtered_messages(msg):
+        return msg.author != client.user
+    quality = 1
+    if len(args) > 0:
+        if args[0].isnumeric():
+            quality = int(args[0])
+    if not 1 < quality < 100:
+        quality = 1
+    if True:
+        #for msg in filter(filtered_messages,messages):
+        async for msg in client.logs_from(message.channel,limit=50,reverse=False):
+            try:
+                images = list(filter(image_embed,msg.embeds))
+                if filtered_messages(msg) and (len(msg.attachments) > 0 or len(images) > 0):
+                    url = images[0].get('url','') if len(images) > 0 else msg.attachments[0]['proxy_url']
+                    attachment = get(url)
+                    content_type = attachment.headers.get_content_type()
+                    if 'image' in content_type:
+                        img_file = io.BytesIO(attachment.read())
+                        img = Image.open(img_file)
+                        outfile = os.path.join('tmp_{}.jpeg'.format(msg.id))
+                        img.save(outfile,"JPEG",quality=quality)
+                        await client.send_file(message.channel,'tmp_{}.jpeg'.format(msg.id))
+                        return
+            except:
+                pass
+    else:
+        await client.send_m(message.channel,'No essages found (I can only read messages sent while I am connected.)')
+
+@register('image','<text>',rate=5)
+async def image_gen(message,*args):
+    """draw image with words"""
+    if len(args) < 1:
+        return False
+
+    input_text = ' '.join(args)
+    image = generate_text_image(input_text,str(message.author.color))
+    image.save('test.png','PNG')
+    await client.send_file(message.channel,'test.png',content="**{}** sent this".format(message.author))
 
 @register('nicememe',owner=True,rate=5)
 async def nicememe(message,*args):
