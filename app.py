@@ -27,6 +27,7 @@ import io
 from PIL import Image,ImageDraw,ImageFont
 import textwrap
 import struct
+import gtts
 
 """Dependencies"""
 import discord
@@ -979,6 +980,20 @@ async def bbc(message,*args):
 async def doe(message,*args):
     """what you want doe"""
     await client.send_file(message.channel,"doe.png")
+
+@register('say','<words>',owner=True,typing=False)
+async def tts(message,*args):
+    """tts my dude"""
+    if len(args) < 1:
+        return False
+    msg = ' '.join(args)
+    gtts.gTTS(msg).save("tts.mp3")
+
+    await join_voice(message)
+    if client.voice:
+        player = client.voice.create_ffmpeg_player('tts.mp3', after=lambda: disconn(client))
+        player.volume = 0.5
+        player.start()
 
 @register('i\'m','<name>',alias='dad')
 @register('im','<name>',alias='dad')
