@@ -518,14 +518,15 @@ async def speedtest(message):
         msg = await client.edit_message(msg, msg.content + MESG.get('st_error','Error.'))
         asyncio.ensure_future(message_timeout(msg, 20))
 
-@register('oauth','[OAuth client ID] [ ID]')
+@register('oauth','[OAuth client ID]')
 async def oauth_link(message,*args):
     """Get OAuth invite link"""
     logger.info('OAuth')
     if len(args) > 3:
         return False
 
-    client_id = args[0] if len(args) > 0 else None
+    appinfo = await client.application_info()
+    client_id = args[0] if len(args) > 0 else appinfo.id
     server_id = args[1] if len(args) > 1 else None
 
     msg = await client.send_message(message.channel, discord.utils.oauth_url(client_id if client_id else client.user.id,
