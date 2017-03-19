@@ -1390,6 +1390,15 @@ async def age(message,*args):
     msg = await client.send_message(message.channel,embed=embed)
     asyncio.ensure_future(message_timeout(msg, 180))
 
+@register('clean','[number of messages]',owner=True,rate=10,typing=False)
+async def clean(message,*args):
+    """delete bot messages"""
+    limit = 10
+    if len(args) > 0:
+        if args[0].isnumeric():
+            limit = int(args[0])
+    await client.purge_from(message.channel,check=lambda m: m.author == client.user,limit=limit)
+
 @register('abuse','<channel> <content>',owner=True,alias='sendmsg')
 @register('sendmsg','<channel> <content>',owner=True)
 async def abuse(message,*args):
