@@ -203,10 +203,29 @@ async def on_voice_state_update(before,after):
             sleepies[after.id] = asyncio.ensure_future(toggle_deafen(after))
 
 """Commands"""
-@register('test','[list of parameters]',owner=False,rate=1)
+@register('test','[list of wrap_textmeters]',owner=False,rate=1)
 async def test(message,*args):
     """Print debug output"""
-    msg = await client.send_message(message.channel,'```py\n{0}\n```\n```py\n{1}\n```'.format(args,message.attachments))
+    debug = '**Debug Output**```py\n'
+
+    def get_embed(embed):
+        temp = {}
+        for wrap_textm in ['type','title','description','url','footer','image','video','author']:
+            try:
+                temp[wrap_textm] = embed.get(param,None)
+            except:
+                pass
+        return temp
+
+    if len(args) > 0:
+        debug += '\n\nargs = {}'.format(args)
+    if len(message.attachments) > 0:
+        debug += '\n\nmessage.attachments = {}'.format(message.attachments)
+    if len(message.embeds) > 0:
+        debug += '\nmessage.embeds = {}'.format(e.to_dict() for e in message.embeds)
+    debug += "\ncolor = '{}'".format(str(message.author.color))
+    debug += '```'
+    msg = await client.send_message(message.channel,debug)
     await client.add_reaction(msg,'🚫')
     def react(reaction,user):
         return user != client.user
