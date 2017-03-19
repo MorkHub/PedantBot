@@ -23,9 +23,14 @@ import subprocess
 import calendar as cal
 from random import randrange
 import glob
+import io
+from PIL import Image,ImageDraw,ImageFont
+import textwrap
+import struct
 
 """Dependencies"""
 import discord
+import taglib
 import morkpy.graph as graph
 from morkpy.postfix import calculate
 import pyspeedtest
@@ -1039,22 +1044,40 @@ async def nicememe(message,*args):
     except:
         pass
 
+    if client.voice:
+        player = client.voice.create_ffmpeg_player('/home/mark/Documents/pedant/nicememe.mp3', after=lambda: disconn(client))
+        player.volume = 0.5
+        player.start()
+
+@register('summon',owner=True,typing=False)
+async def summon(message,*args):
+    """summon"""
     if not client.voice:
         for chan in message.server.channels:
             if chan.type == discord.ChannelType.voice and message.author in chan.voice_members:
                 client.voice = await client.join_voice_channel(chan)
+                break
+        else:
+            client.voice = await client.join_voice_channel(sorted([x for x in message.server.channels if x.type == discord.ChannelType.voice], key=lambda x: x.position)[0])
 
+@register('disconnect',owner=True,typing=False)
+async def disconnect(message,*args):
+    """disconnect"""
     if client.voice:
-        player = client.voice.create_ffmpeg_player('/home/mark/Documents/pedant/nicememe.mp3')
-        player.volume = 0.5
-        player.start()
+        await client.voice.disconnect()
+        client.voice = None
+
+def disconn(clnt):
+    if clnt.voice:
+        asyncio.run_coroutine_threadsafe(clnt.voice.disconnect(), clnt.loop).result()
+        clnt.voice = None
 
 @register('play','<audio track>',typing=False)
 async def play_audio(message,*args):
     """play audio in voice channel"""
     if len(args) < 1:
         files = glob.glob('sounds/*.mp3')
-        embed = discord.Embed(title="Available Audio Files",description="```\n{}```".format('\n'.join([x.replace('sounds/','').replace('.mp3','') for x in files])),color=message.author.color)
+        embed = discord.Embed(title="Available Audio Files",description="```\n{}```".format('\n'.join(sorted([x.replace('sounds/','').replace('.mp3','') for x in files]))),color=message.author.color)
         await client.send_message(message.channel,embed=embed)
         return
 
@@ -1062,19 +1085,16 @@ async def play_audio(message,*args):
         await client.send_message(message.channel,'Audio track `{}` not found.'.format(args[0]))
         return
 
-    if not client.voice:
-        for chan in message.server.channels:
-            if chan.type == discord.ChannelType.voice and message.author in chan.voice_members:
-                client.voice = await client.join_voice_channel(chan)
+    track = taglib.File('sounds/{}.mp3'.format(args[0]))
+    if track.length > 10 and not isadmin(message.author):
+        await client.send_message(message.channel,'Fuck off that\'s too long')
+        return
 
+    await join_voice(message)
     if client.voice:
-        player = client.voice.create_ffmpeg_player(CONF.get('dir_pref','/home/shwam3/') + 'sounds/{}.mp3'.format(args[0]))
+        player = client.voice.create_ffmpeg_player(CONF.get('dir_pref','/home/shwam3/') + 'sounds/{}.mp3'.format(args[0]), after=lambda: disconn(client))
         player.volume = 0.75
         player.start()
-        #while not player.is_done():
-            #asyncio.sleep(1)
-        #await client.voice.disconnect()
-        #client.voice = None
 
 @register('feshpince','<part #>',rate=5)
 async def feshpince(message,*args):
