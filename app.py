@@ -1522,8 +1522,8 @@ async def banned_users(message,*args):
     msg = await client.send_message(message.channel,embed=embed)
     asyncio.ensure_future(message_timeout(msg, 60))
 
-@register('fkoff',owner=True,alias='restart')
-@register('restart',owner=True)
+@register('fkoff',owner=True,alias='restart',typing=False)
+@register('restart',owner=True,typing=False)
 async def fkoff(message,*args):
     """Restart the bot"""
     logger.info('Stopping')
