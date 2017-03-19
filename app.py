@@ -803,7 +803,7 @@ async def thyme(message,*args):
     """Send some thyme to your friends"""
     embed = discord.Embed(title='Thyme',timestamp=message.edited_timestamp or message.timestamp,color=message.author.color)
     embed.set_image(url='http://shwam3.altervista.org/thyme/image.jpg')
-    embed.set_footer(text='{} loves you long thyme'.format(member.nick or member.name))
+    embed.set_footer(text='{} loves you long thyme'.format(message.author.nick or message.author.name))
 
     await client.send_message(message.channel,embed=embed)
 
