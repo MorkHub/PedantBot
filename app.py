@@ -1275,6 +1275,19 @@ async def calendar(message,*args):
     msg = await client.send_message(message.channel,embed=embed)
     asyncio.ensure_future(message_timeout(msg, 120))
 
+
+@register('id','[DiscordTag#0000] [server ID]',owner=True)
+async def get_user_id(message,*args):
+    """get User ID by DiscordTag#0000"""
+    if len(args) == 0:
+        id = message.author.id
+    if len(args) == 1:
+        id = message.server.get_member_named(args[0]).id
+    else:
+        id = client.get_server(args[1]).get_member_named(args[0]).id
+
+    await client.send_message(message.channel, "{}'s ID is `{}`".format(args[0] if len(args) > 0 else message.author, id))
+
 @register('servers',owner=True)
 async def connected_servers(message,*args):
     """Lists servers currently connected"""
