@@ -1579,6 +1579,14 @@ async def log_exception(e,location=None):
     except:
         pass
 
+def isowner(user=discord.User()):
+    """returns True if the user is in the list of sudoers"""
+    return user.id in CONF.get("owners",[])
+
+def isadmin(member):
+    """returns True if the user is in the list of sudoers, or is an admin in the current server"""
+    return member.server_permissions.administrator or isowner(member)
+
 async def message_timeout(message,timeout):
     """Deletes the specified message after the allotted time has passed"""
     if timeout > 0:
