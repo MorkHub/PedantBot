@@ -1654,6 +1654,50 @@ async def do_reminder(client, invoke_time):
     if cancel_ex:
         raise cancel_ex
 
+async def join_voice(message):
+    """join the nearest voice channel"""
+    if not client.voice:
+        for chan in message.server.channels:
+            if chan.type == discord.ChannelType.voice and message.author in chan.voice_members:
+                client.voice = await client.join_voice_channel(chan)
+                break
+        else:
+            client.voice = await client.join_voice_channel(sorted([x for x in message.server.channels if x.type == discord.ChannelType.voice], key=lambda x: x.position)[0])
+    return
+
+def generate_text_image(input_text="",colour='#ffffff'):
+    """returns Image with text in it"""
+    if '\n' in input_text:
+        wrap_text = input_text.splitlines()
+    else:
+        wrap_text = textwrap.wrap(input_text, width=30)
+    current_h, pad = 10, 10
+    colour = colour.replace('#','')
+
+    MAX_W, MAX_H = 200, 200
+    im = Image.new('RGBA', (MAX_W, MAX_H), (0, 0, 0, 255))
+    draw = ImageDraw.Draw(im)
+    font = ImageFont.truetype('FreeMono.ttf', 18)
+
+    MAX_W = sorted([draw.textsize(x, font=font)[0] for x in wrap_text],key=lambda w: -w)[0] + pad
+    MAX_H = (draw.textsize(wrap_text[0], font=font)[1]) * len(wrap_text) + 2*pad
+    im = Image.new('RGB',(MAX_W+20, MAX_H), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(im)
+
+    def text_outline(draw,text="",x=0,y=0,fill="white",stroke="black",thickness=1):
+        """draw text with stroke"""
+        coords = [(x+thickness,y),(x-thickness,y),(x,y+thickness),(x,y-thickness)]
+        for loc in coords:
+            draw.text(loc,text,stroke,font)
+        draw.text((x,y),text,fill,font)
+
+    for line in wrap_text:
+        w, h = draw.textsize(line, font=font)
+        draw.text(((MAX_W - w + pad) / 2, current_h), line, font=font,fill=struct.unpack('BBB',bytes.fromhex(colour)))
+        current_h += h
+
+    return im
+
 """Exit procedure"""
 @atexit.register
 def save_reminders():
