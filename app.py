@@ -1065,6 +1065,7 @@ async def nicememe(message,*args):
         player.volume = 0.5
         player.start()
 
+@register('s',owner=True,typing=False,alias='summon')
 @register('summon',owner=True,typing=False)
 async def summon(message,*args):
     """summon"""
@@ -1076,6 +1077,7 @@ async def summon(message,*args):
         else:
             client.voice = await client.join_voice_channel(sorted([x for x in message.server.channels if x.type == discord.ChannelType.voice], key=lambda x: x.position)[0])
 
+@register('d',owner=True,typing=False,alias='disconnect')
 @register('disconnect',owner=True,typing=False)
 async def disconnect(message,*args):
     """disconnect"""
@@ -1084,7 +1086,7 @@ async def disconnect(message,*args):
         client.voice = None
 
 def disconn(clnt):
-    if clnt.voice:
+    if clnt.voice and CONF.get('voice_disconnect',True):
         asyncio.run_coroutine_threadsafe(clnt.voice.disconnect(), clnt.loop).result()
         clnt.voice = None
 
@@ -1102,7 +1104,7 @@ async def play_audio(message,*args):
         return
 
     track = taglib.File('sounds/{}.mp3'.format(args[0]))
-    if track.length > 10 and not isadmin(message.author):
+    if track.length > 10 and not (isadmin(message.author) or isowner(message.author)):
         await client.send_message(message.channel,'Fuck off that\'s too long')
         return
 
