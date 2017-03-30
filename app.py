@@ -513,11 +513,11 @@ async def speedtest(message):
 
         down = str(round(st.download()/1024/1024,2))
         logger.info(' -> download: ' + down + 'Mb/s')
-        msg = await client.edit_message(msg, MESG.get('st_down','Speedtest:\nping: {0}ms,  up: {1}MB/s ...').format(ping,down))
+        msg = await client.edit_message(msg, MESG.get('st_down','Speedtest:\nping: {0}ms,  down: {1}MB/s ...').format(ping,down))
 
         up = str(round(st.upload()/1024/1024,2))
         logger.info(' -> upload: ' + up + 'Mb/s')
-        msg = await client.edit_message(msg, MESG.get('st_up','Speedtest:\nping: {0}ms,  up: {1}MB/s, down: {2}MB/s').format(ping,down,up))
+        msg = await client.edit_message(msg, MESG.get('st_up','Speedtest:\nping: {0}ms,  down: {1}MB/s, up: {2}MB/s').format(ping,down,up))
 
     except Exception as e:
         logger.exception(e)
