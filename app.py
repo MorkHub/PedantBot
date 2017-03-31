@@ -1478,6 +1478,31 @@ async def perms(message,*args):
     msg = await client.send_message(message.channel, "**Perms for {user.name} in {server.name}:** ({1.value})\n```{0}```".format('\n'.join(perms_list),perms,user=member,server=message.server))
     asyncio.ensure_future(message_timeout(msg, 120))
 
+@register('hole','@<mention users>',admin=True)
+async def hole(message,*args):
+    """move user to the hole"""
+    hole = [x for x in message.server.channels if 'hole' in x.name.lower() and x.type == discord.ChannelType.voice]
+    if len(hole) < 1:
+        await client.send_message(message.channel,"There is no hole channel.")
+        return
+    elif len(hole) > 1:
+        prompt =await client.send_message(message.channel,"There are multiple hole channels, please select one. ```{}```".format('\n'.join([str(i) + " " + hole[i].name for i in range(len(hole))])))
+        res = await client.wait_for_message(author=message.author,channel=message.channel,check=lambda m: m.content.isnumeric() and 0 < int(m.content) < len(hole))
+        channel = hole[int(res.content)]
+        try:
+            await client.delete_message(res)
+            await client.delete_message(prompt)
+        except: pass
+    else:
+        channel = hole[0]
+
+    for user in message.mentions:
+        channels = [x for x in message.server.channels if x.type == discord.ChannelType.voice and user in x.voice_members]
+        if len(channels) < 1:
+            await client.send_message(message.channel,"User is not in a voice channel.")
+            return
+        await client.move_member(user,channel)
+
 @register('kick','@<mention users>',owner=True)
 async def kick(message,*args):
     """Kicks the specified user from the server"""
