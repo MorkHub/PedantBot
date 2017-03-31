@@ -136,8 +136,7 @@ async def on_message(message):
                 if command_name in commands:
                     cmd = commands[command_name]
                 else:
-                    msg = await client.send_message(message.channel, MESG.get('cmd_notfound','`{0}` not found.').format(command_name))
-                    asyncio.ensure_future(message_timeout(msg, 40))
+                    asyncio.ensure_future(do_record(message))
                     return False
 
                 last_used = cmd.invokes.get(message.author.id,False)
