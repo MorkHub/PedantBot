@@ -1059,7 +1059,28 @@ async def image_gen(message,*args):
     image.save('test.png','PNG')
     await client.send_file(message.channel,'test.png',content="**{}** sent this".format(message.author))
 
-@register('nicememe',owner=True,rate=5)
+@register('bren','<url to image>',rate=10)
+async def bren_think(message,*args):
+    """creates an image of brendaniel thinking about things"""
+    if len(args) < 1:
+        return False
+
+    fg = Image.open(urllib.request.urlopen(args[0]))
+    bg = Image.open("bren.png")
+
+    w,h = fg.size
+    ratio = round(w/h)
+    MAX = 180
+    w2,h2 = MAX,MAX*ratio
+
+    fg2 = fg.resize((w2,min(MAX,h2)))
+    draw = ImageDraw.Draw(bg)
+
+    bg.paste(fg2,(120,110))
+    bg.save('bren_2.png','PNG')
+    await client.send_file(message.channel,'bren_2.png',filename="bren thinking.png")
+
+@register('nicememe',owner=True,rate=5,typing=False)
 async def nicememe(message,*args):
     """say nice meme"""
     try:
