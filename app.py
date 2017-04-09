@@ -34,6 +34,7 @@ import discord
 import taglib
 import morkpy.graph as graph
 from morkpy.postfix import calculate
+from morkpy.scale import scale
 import pyspeedtest
 import MySQLdb
 import wikipedia, wikia
@@ -1064,18 +1065,19 @@ async def bren_think(message,*args):
     if len(args) < 1:
         return False
 
-    fg = Image.open(urllib.request.urlopen(args[0]))
+    fg = Image.open(get(args[0]))
     bg = Image.open("bren.png")
 
     w,h = fg.size
     ratio = round(w/h)
     MAX = 180
-    w2,h2 = MAX,MAX*ratio
+    #w2,h2 = MAX,MAX*ratio
+    w2,h2 = scale(w,h)
 
-    fg2 = fg.resize((w2,min(MAX,h2)))
+    fg2 = fg.resize((min(w2,MAX),min(MAX,h2)))
     draw = ImageDraw.Draw(bg)
 
-    bg.paste(fg2,(120,110))
+    bg.paste(fg2,(120-round((MAX-w2)/2),110+round((MAX-h2)/2)))
     bg.save('bren_2.png','PNG')
     await client.send_file(message.channel,'bren_2.png',filename="bren thinking.png")
 
