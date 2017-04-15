@@ -416,8 +416,8 @@ async def list_reminders(message,*args):
                 if d[i] > 0:
                     x = i
                     break
-            u=['years','days','hours','minutes','seconds']
-            m="{} {} remaining".format(d[x],u[x])
+            u=['year','day','hour','minute','second']
+            m="{} {}{} remaining".format(d[x],u[x],'s' if d[x] > 1 else '')
             reminders_yes += ''.join([x for x in (rem['user_mention'] + ' at ' + date + ' ({})'.format(m) + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)\n') if x in ALLOWED_EMBED_CHARS or x == '\n'])
 
     if len(reminders) == 0:
