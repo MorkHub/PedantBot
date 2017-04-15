@@ -399,14 +399,26 @@ async def list_reminders(message,*args):
 
     for rem in reminders:
         try:
-            date = datetime.fromtimestamp(rem['time']).strftime(CONF.get('date_format','%A %d %B %Y @ %I:%M%p'))
-        except:
-            date = str(rem['time'])
+            if not message.server.get_channel(rem['channel_id']): continue
+        except: continue
+
+        try: date = datetime.fromtimestamp(rem['time']).strftime(CONF.get('date_format','%A %d %B %Y @ %I:%M%p'))
+        except: date = str(rem['time'])
 
         if rem.get('is_cancelled',False):
-            reminders_no += '~~' + rem['user_name'] + ' at ' + date + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)~~\n'
+            reminders_no += '~~' + mesage.server.get_member(rem['user_mention'].replace('<@!','').replace('>','')).name + ' at ' + date + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)~~\n'
         else:
-            reminders_yes += rem['user_name'] + ' at ' + date + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)\n'
+            n=datetime.now()
+            c=(datetime.fromtimestamp(rem['time'])-n)
+            s=c.days*86400+c.seconds
+            d=(s//(86400*365),s//86400,s//3600,s//60,s)
+            for i in range(5):
+                if d[i] > 0:
+                    x = i
+                    break
+            u=['years','days','hours','minutes','seconds']
+            m="{} {} remaining".format(d[x],u[x])
+            reminders_yes += ''.join([x for x in (rem['user_mention'] + ' at ' + date + ' ({})'.format(m) + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)\n') if x in ALLOWED_EMBED_CHARS or x == '\n'])
 
     if len(reminders) == 0:
         msg += 'No reminders'
