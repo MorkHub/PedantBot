@@ -1317,10 +1317,12 @@ async def vote(message,*args):
             logger.info(' -> no winner')
 
         else:
-            reacts = sorted(reacts, key=lambda x: x[1])
-            reacts.reverse()
+            winner = sorted(reacts, key=lambda x: -x[1])[0]
 
-            await client.send_message(msg.channel,MESG.get('vote_win','"{0}", Winner: {1}').format(question,reacts[0][0],graph=graph.draw(msg.reactions,height=5,find=lambda x: x.count-1)))
+            output = graph.draw(reacts,height=5,find=lambda x: x[1])
+            output += "\n" + ''.join([x[0] if len(x[0]) == 1 else reacts.index(x) for x in reacts])
+
+            await client.send_message(msg.channel,MESG.get('vote_win','"{0}", Winner: {1}').format(question,winner[0],graph=output))
             logger.info(' -> %s won' % reacts[0][0])
 
 @register('squote','[quote id]',rate=2,alias='quote')
