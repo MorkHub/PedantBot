@@ -1709,7 +1709,8 @@ async def do_calc(message,*args):
     else:
         logger.info(' -> ' + str(maths))
         try:
-            await client.send_message(message.channel,'`{} = {}`'.format(maths,calculate(maths)))
+            ans = calculate(maths)
+            await client.send_message(message.channel,'`{} = {}`'.format(maths,"The Universe, Life and Everything" if ans == 42 else ans))
         except Exception as e:
             logger.exception(e)
             await client.send_message(message.channel, MESG.get('maths_illegal','Error in {0}').format(maths))
