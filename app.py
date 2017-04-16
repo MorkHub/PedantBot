@@ -1493,9 +1493,14 @@ async def age(message,*args):
     for mention in message.mentions:
         users.append(mention)
 
+    def age(user=discord.User()):
+        return discord.utils.snowflake_time(user.id)
+
     string = ''
-    for user in users:
-        string += '•  **{user}**:`{user.id}` joined on `{date}`\n'.format(user=user,date=discord.utils.snowflake_time(user.id).strftime('%d %B %Y @ %I:%M%p'))
+    users = sorted(users,key=age)
+    for n,user in enumerate(sorted(users,key=age)):
+        user.name = re.sub(r'([*_])',r'\\\1',user.name)
+        string += '{n:>2}.  **{user}**:`{user.id}` joined on `{date}`\n'.format(n=n+1,user=user,date=age(user).strftime('%d %B %Y @ %I:%M%p'))
 
     embed = discord.Embed(title="Age of users in {server.name}".format(server=message.server),
         color=message.author.color,
