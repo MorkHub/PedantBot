@@ -210,16 +210,16 @@ async def on_voice_state_update(before,after):
             sleepies[after.id] = asyncio.ensure_future(toggle_deafen(after))
 
 """Commands"""
-@register('test','[list of wrap_textmeters]',owner=False,rate=1)
+@register('test','[list of parameters]',owner=False,rate=1)
 async def test(message,*args):
     """Print debug output"""
     debug = '**Debug Output**```py\n'
 
     def get_embed(embed):
         temp = {}
-        for wrap_textm in ['type','title','description','url','footer','image','video','author']:
+        for param in ['type','title','description','url','footer','image','video','author']:
             try:
-                temp[wrap_textm] = embed.get(param,None)
+                temp[param] = embed.get(param,None)
             except:
                 pass
         return temp
