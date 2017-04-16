@@ -47,6 +47,7 @@ last_message_time = {}
 reminders = []
 ALLOWED_EMBED_CHARS = ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~'
 client = discord.Client()
+pedant_db = MySQLdb.connect(user='pedant', password='7XlMqXHCLfGomDHu', db='pedant')
 
 """Command registration framework"""
 import functools,inspect
@@ -171,6 +172,7 @@ async def on_message(message):
                 msg = await client.send_message(message.channel,MESG.get('error','Error in `{1}`: {0}').format(e,command_name))
                 asyncio.ensure_future(message_timeout(msg, 40))
         else:
+            asyncio.ensure_future(do_record(message))
             pass
 
     except Exception as e:
@@ -263,6 +265,63 @@ async def get_msg(message,*args):
 
    embed = discord.Embed(title="Message info",description="Date: {}\nContent: {:.100}".format(msg.timestamp.strftime('%d %B %Y @ %I:%M%p'),msg.content))
    await client.send_message(message.channel,embed=embed)
+
+@register('whois','[user ID] [server ID]')
+async def me(message,*args):
+    """get informartion about yourself"""
+    user = None; server = message.server; channel = message.channel
+    if len(args) > 1: server = client.get_server(args[1])
+    if len(message.mentions) > 0: user = message.mentions[0]
+    elif len(args) > 0: user = server.get_member_named(args[0]) or server.get_member(args[0])
+    if not user: user = message.author
+  
+    mutual = len([x for x in client.servers if user in x.members])
+    info  = "**Mutual servers:** `{}`\n".format(mutual)
+    info += "**User ID:** `{}`\n".format(user.id)
+    if user.nick: info += "**Nickname**: {}\n".format(user.nick)
+    info += "**Creation Date:** `{}`\n".format(discord.utils.snowflake_time(user.id).strftime('%d %B %Y @ %I:%M%p'))
+    if not channel.is_private:
+        info += "**Joined Server:** `{}`\n".format(user.joined_at.strftime('%d %B %Y @ %I:%M%p'))
+        if user.game: info += "**Playing** {}\n".format("[{game.name}]({game.url})".format(game=user.game) if user.game.url else str(user.game))
+        info += "**Roles**: {}\n".format(', '.join([role.mention if (role.server == message.server and  role.mentionable) else role.name for role in sorted(user.roles,key=lambda r: -r.position) if not role.is_everyone]))
+        cursor = pedant_db.cursor()
+        query = "SELECT `id`,`xp` FROM `pedant`.`levels` WHERE `user_id`='{}' AND `guild_id`='{}' LIMIT 1".format(user.id,server.id)
+        cursor.execute(query)
+        for id,xp in cursor:
+            info += "**Experience:** `{:,}`\n".format(xp)
+    embed = discord.Embed(description=info,color=message.author.color)
+    embed.set_author(name=user.name, icon_url=user.avatar_url or user.default_avatar_url)
+    if channel.is_private: embed.set_footer(icon_url=client.user.avatar_url or client.user.default_avatar_url,text=client.user.name)
+    else: embed.set_footer(icon_url=server.icon_url or '',text=server.name)
+    #names = {x.get_member(user.id).nick or message.author.name for x in client.servers if message.author in x.members}
+    #info += "**Other names**: {}**\n".format(', '.join(names))
+    embed.timestamp = message.timestamp
+
+    await client.send_message(message.channel,embed=embed)
+
+@register('levels','[server ID]')
+async def get_levels(message,*args):
+    """get server leaderboards"""
+    server = message.server
+    if len(args) > 0: server = client.get_server(args[0])
+
+    cursor = pedant_db.cursor()
+    query = "SELECT `user_id`,`xp` FROM `pedant`.`levels` WHERE `guild_id`='{}' ORDER BY `xp` DESC LIMIT 10".format(server.id)
+    cursor.execute(query)
+
+    info = ""; n = 1; xp_list = []
+    for user_id,xp in cursor:
+        member = server.get_member(user_id)
+        info += ("**{}. {}**: `{:,}`xp\n").format(n,member,xp)
+        xp_list.append(xp)
+        n += 1
+
+    logger.info(xp_list)
+    info += "\n```{}```".format(graph.draw(xp_list,height=4,labels=[x+1 for x in range(len(xp_list))]))
+
+    embed = discord.Embed(title="Leaderboards for {}".format(server.name),description=info,color=message.author.color)
+    embed.set_footer(icon_url=client.user.avatar_url or client.user.default_avatar_url,text="PedantBot Levels")
+    await client.send_message(message.channel,embed=embed)
 
 @register('git')
 async def git(message,*args):
@@ -1797,6 +1856,21 @@ def get_reminder(invoke_time):
             return rem
 
     return None
+
+users={}
+async def do_record(message=None):
+    """scores points for user on message"""
+    if message.author.bot: return
+    last = users.get((message.author.id,message.server.id),0)
+    now = datetime.now().timestamp()
+    if last+60 < now:
+       users[(message.author.id,message.server.id)] = now
+    else: return
+
+    cursor = pedant_db.cursor()
+    query = "INSERT INTO `pedant`.`levels` (`xp`,`user_id`, `guild_id`) VALUES ({1},'{0.author.id}','{0.server.id}') ON DUPLICATE KEY UPDATE xp = xp+{1}".format(message,randrange(5,30))
+    cursor.execute(query)
+    pedant_db.commit()
 
 async def do_reminder(client, invoke_time):
     """Schedules and executes reminder"""
