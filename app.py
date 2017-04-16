@@ -154,7 +154,7 @@ async def on_message(message):
 
                     if cmd.typing:
                         await client.send_typing(message.channel)
-                    if not cmd.owner or (cmd.owner and message.author.id in CONF.get('owners',[])):
+                    if not (cmd.owner or cmd.admin) or (cmd.owner and isowner(message.author)) or (cmd.admin and (isadmin(message.author) or isowner(message.author))):
                         executed = await cmd(message,*command_args)
                         if executed == False:
                             msg = await client.send_message(message.channel,MESG.get('cmd_usage','USAGE: {}.usage').format(cmd))
@@ -1675,6 +1675,18 @@ def isowner(user=discord.User()):
 def isadmin(member):
     """returns True if the user is in the list of sudoers, or is an admin in the current server"""
     return member.server_permissions.administrator
+
+def has_perm(permissions=discord.Permissions(),required=[]):
+    """returns True if the supplied permissions contains the required"""
+    if len(required) == 0: return True
+    if type(required) == type(''): required = required.split(',')
+
+    for permission in required:
+        try:
+            if not (permissions.__getattribute__(permission) or permissions.administrator): return False
+        except:
+            return False
+    return True
 
 async def message_timeout(message,timeout):
     """Deletes the specified message after the allotted time has passed"""
