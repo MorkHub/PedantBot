@@ -975,6 +975,11 @@ async def ncie(message,*args):
     """:point_right: :point_right: ncie"""
     await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'ncie.png')
 
+@register('ncei')
+async def nice(message,*args):
+    """minkle is bad"""
+    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'ncei.png')
+
 @register('nicenice')
 async def nicenice(message,*args):
     """:point_right: :point_right: nice"""
