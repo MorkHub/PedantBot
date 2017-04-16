@@ -1025,7 +1025,7 @@ async def doe(message,*args):
     """what you want doe"""
     await client.send_file(message.channel,"doe.png")
 
-@register('say','<words>',owner=True,typing=False)
+@register('say','<words>',typing=False)
 async def tts(message,*args):
     """tts my dude"""
     if len(args) < 1:
@@ -1036,6 +1036,33 @@ async def tts(message,*args):
     await join_voice(message)
     if client.voice:
         player = client.voice.create_ffmpeg_player('tts.mp3', after=lambda: disconn(client))
+        player.volume = 0.5
+        player.start()
+
+@register('nut')
+async def doe(message,*args):
+    """nut"""
+    await client.send_message(message.channel,"╲⎝⧹╲⎝⧹ :regional_indicator_n: :regional_indicator_u: :regional_indicator_t:  ⧸⎠╱⧸⎠╱")
+
+@register('python')
+async def python(message,*args):
+    """python"""
+    await client.send_file(message.channel,"python.png")
+
+@register('shawn',alias='rain')
+@register('rain')
+async def rain(message,*args):
+    """Heavy Rain"""
+    shawns = ['http://ci.memecdn.com/8731766.jpg','https://i.ytimg.com/vi/rFhyZG-l5qY/maxresdefault.jpg','http://i.imgur.com/qQhNH8e.jpg']
+    await client.send_message(message.channel,shawns[randrange(len(shawns))])
+
+shawns = glob.glob("shawn*.mp3")
+@register('x',typing=False)
+async def press_x(message,*args):
+    """Press (x) to SHAWN"""
+    await join_voice(message)
+    if client.voice:
+        player = client.voice.create_ffmpeg_player(shawns[randrange(len(shawns))], after=lambda: disconn(client))
         player.volume = 0.5
         player.start()
 
