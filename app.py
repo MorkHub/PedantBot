@@ -1074,12 +1074,13 @@ async def dad_joke(message,*args):
     """dad jokes my dude"""
     await client.send_message(message.channel,"Hi {:.20}, I am Dad. Nice to meet you.".format(' '.join(args)))
 
+def get(url):
+    return urllib.request.urlopen(urllib.request.Request(url,data=None,headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36'}))
+
 @register('needsmorejpeg','[JPEG quality 1-100]',rate=10)
 async def jpeg(message,*args):
     """adds more jpeg to the last image the app can find"""
     messages = client.messages; messages.reverse()
-    def get(url):
-        return urllib.request.urlopen(urllib.request.Request(url,data=None,headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36'}))
     def image_embed(embed):
         return embed.get('type','') == 'image'
     def filtered_messages(msg):
@@ -1128,6 +1129,12 @@ async def image_gen(message,*args):
 @register('bren','<url to image>',rate=10)
 async def bren_think(message,*args):
     """creates an image of brendaniel thinking about things"""
+
+    def image_embed(embed):
+        return embed.get('type','') == 'image'
+    def filtered_messages(msg):
+        return msg.author != client.user
+
     if len(args) < 1:
         return False
 
