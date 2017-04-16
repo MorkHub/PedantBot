@@ -239,6 +239,11 @@ async def test(message,*args):
     await client.wait_for_reaction(emoji='🚫',message=msg,check=react)
     await client.delete_message(msg)
 
+@register('report')
+async def issues(message,*args):
+    """get url to report bugs"""
+    await client.send_message(message.channel,"Please post bug reports on GitHub.\n__https://github.com/MorkHub/PedantBot/issues__")
+
 @register('info',rate=5)
 async def bot_info(message,*args):
     """Print information about the Application"""
