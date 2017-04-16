@@ -282,9 +282,9 @@ async def help(message,*args):
                     standard_commands += '{0.usage}'.format(cmd) + "\n"
 
         embed = discord.Embed(title="Command Help",color=message.author.color,description='Prefix: {0}\nUSAGE: {0}command <required> [optional]\nFor more details: {0}help [command] '.format(CONF.get('cmd_pref','/')))
-        embed.add_field(name='Standard Commands',value='```'+standard_commands+'```',inline=True)
+        embed.add_field(name='Standard Commands',value='```{:.1000}```'.format(standard_commands),inline=True)
         if message.author.id in CONF.get('owners',[]):
-          embed.add_field(name='Admin Commands',value='```'+admin_commands+'```',inline=True)
+          embed.add_field(name='Admin Commands',value='```{:.400}```'.format(admin_commands),inline=True)
         embed.add_field(name='Discord Help',value='If you need help using Discord, the Help Center may be useful for you.\nhttps://support.discordapp.com/')
 
         msg = await client.send_message(message.channel,embed=embed)
