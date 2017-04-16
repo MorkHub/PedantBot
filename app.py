@@ -28,6 +28,7 @@ from PIL import Image,ImageDraw,ImageFont
 import textwrap
 import struct
 import gtts
+import requests
 
 """Dependencies"""
 import discord
@@ -1046,6 +1047,9 @@ async def jpeg(message,*args):
                 images = list(filter(image_embed,msg.embeds))
                 if filtered_messages(msg) and (len(msg.attachments) > 0 or len(images) > 0):
                     url = images[0].get('url','') if len(images) > 0 else msg.attachments[0]['proxy_url']
+                    if (int(requests.head(url,headers={'Accept-Encoding': 'identity'}).headers['content-length']) / 1024 / 1024) >= 8:
+                        await client.send_message(message.channel,'Image is too large.')
+                        return
                     attachment = get(url)
                     content_type = attachment.headers.get_content_type()
                     if 'image' in content_type:
