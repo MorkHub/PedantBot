@@ -411,9 +411,7 @@ async def list_reminders(message,*args):
         try: date = datetime.fromtimestamp(rem['time']).strftime(CONF.get('date_format','%A %d %B %Y @ %I:%M%p'))
         except: date = str(rem['time'])
 
-        if rem.get('is_cancelled',False):
-            reminders_no += '~~' + mesage.server.get_member(rem['user_mention'].replace('<@!','').replace('>','')).name + ' at ' + date + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)~~\n'
-        else:
+        if not rem.get('is_cancelled',False):
             n=datetime.now()
             c=(datetime.fromtimestamp(rem['time'])-n)
             s=c.days*86400+c.seconds
@@ -424,17 +422,13 @@ async def list_reminders(message,*args):
                     break
             u=['year','day','hour','minute','second']
             m="{} {}{} remaining".format(d[x],u[x],'s' if d[x] > 1 else '')
-            reminders_yes += ''.join([x for x in (rem['user_mention'] + ' at ' + date + ' ({})'.format(m) + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)\n') if x in ALLOWED_EMBED_CHARS or x == '\n'])
 
-    if len(reminders) == 0:
-        msg += 'No reminders'
+            current_reminders += ''.join([x for x in (rem['user_mention'] + ' at ' + date + ' ({})'.format(m) + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)\n') if x in ALLOWED_EMBED_CHARS or x == '\n'])
 
-    embed = discord.Embed(title="Reminders in {}".format(message.server.name),color=message.author.color,description='No reminders set' if (len(reminders_yes)==0 and len(reminders_no)==0) else discord.Embed.Empty)
+    embed = discord.Embed(title="Reminders in {}".format(message.server.name),color=message.author.color,description='No reminders set' if len(current_reminders == 0) else discord.Embed.Empty)
     embed.set_footer(icon_url=message.server.icon_url,text='{:.16} | PedantBot Reminders'.format(message.server.name))
-    if len(reminders_yes) > 0:
-        embed.add_field(name='__Current Reminders__',value=reminders_yes)
-    if len(reminders_no) > 0:
-        embed.add_field(name='__Cancelled Reminders__',value=reminders_no)
+    if len(current_reminders) > 0:
+        embed.add_field(name='__Current Reminders__',value='{:.1000}'.format(reminders_yes))
 
     msg = await client.send_message(message.channel, embed=embed)
     asyncio.ensure_future(message_timeout(msg, 90))
