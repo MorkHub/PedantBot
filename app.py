@@ -1424,7 +1424,8 @@ async def get_user_id(message,*args):
 @register('servers',owner=True)
 async def connected_servers(message,*args):
     """Lists servers currently connected"""
-    servers = ['•   **{server.name}** (`{server.id}`)'.format(server=x) for x in client.servers]
+
+    servers = ['•   __{owner.name}\'s__ **{server.name}** (`{server.id}`)'.format(owner=x.owner,server=x) for x in client.servers]
 
     embed = discord.Embed(title='Servers {0} is connected to.'.format(client.user),
                           colour=message.author.color,
@@ -1456,7 +1457,7 @@ async def connected_channels(message,*args):
 
     listening = True
     while listening:
-        res = await client.wait_for_reaction(['👈','👉','🚫'],message=msg,check=check,timeout=30)
+        res = await client.wait_for_reaction(['👈','👉','🚫'],message=msg,check=check,user=message.author,timeout=30)
         if res:
             emoji = res.reaction.emoji
             await client.remove_reaction(msg,emoji,res.user)
@@ -1489,7 +1490,7 @@ async def connected_channels(message,*args):
 async def server_ranks(message,*args):
     """Displays a list of ranks in the server"""
     embed = discord.Embed(title='Ranks for {server.name}.'.format(server=message.server), colour=message.author.color)
-    for role in message.server.roles:
+    for role in sorted(message.server.roles,key=lambda r: -r.position):
         if not role.is_everyone:
             members = ['•   **{user.name}** (`{user.id}`)'.format(user=x) for x in message.server.members if role in x.roles]
             if len(members) > 0:
