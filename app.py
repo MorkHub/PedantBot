@@ -1464,6 +1464,7 @@ async def connected_channels(message,*args):
             embed.title = "Channels in {server.name}".format(server=currentServer)
             embed.description = '\n'.join(['•   **{channel.name}** (`{channel.id}`) "{channel.topic}"'.format(channel=x) for x in currentServer.channels if x.type == discord.ChannelType.text])
             embed.set_footer(text=('Prev: {} | '.format(servers[currentIndex -1].name) if currentIndex > 0 else '') + 'Current: {}'.format(currentServer.name) + (' |  Next: {}'.format(servers[currentIndex + 1].name) if currentIndex < len(servers)-1 else ''))
+            if currentServer.icon_url: embed.set_thumbnail(url=currentServer.icon_url or discord.Embed.Empty)
             await client.edit_message(msg, embed=embed)
         else:
             listening = False
