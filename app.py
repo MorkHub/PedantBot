@@ -1143,9 +1143,25 @@ async def bren_think(message,*args):
     fg2 = fg.resize((min(w2,MAX),min(MAX,h2)))
     draw = ImageDraw.Draw(bg)
 
-    bg.paste(fg2,(120-round((MAX-w2)/2),110+round((MAX-h2)/2)))
+    bg.paste(fg2,(120+round((MAX-w2)/2),110+round((MAX-h2)/2)))
     bg.save('bren_2.png','PNG')
     await client.send_file(message.channel,'bren_2.png',filename="bren thinking.png")
+
+@register('rotato','<image url> [rotato amount]',rate=5)
+async def rotato(message,*args):
+    """rotate image"""
+    if len(args) < 1:
+        return False
+
+    if len(args) > 1 and args[1].isnumeric():
+        rotato = int(args[1])
+    else:
+        rotato = 180
+
+    fg = Image.open(get(args[0]))
+    fg.rotate(rotato).save("rotato.png","PNG")
+
+    await client.send_file(message.channel,"rotato.png",filename="rotato.png")
 
 @register('nicememe',owner=True,rate=5,typing=False)
 async def nicememe(message,*args):
