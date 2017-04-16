@@ -1323,6 +1323,7 @@ async def vote(message,*args):
             await client.send_message(msg.channel,MESG.get('vote_win','"{0}", Winner: {1}').format(question,reacts[0][0],graph=graph.draw(msg.reactions,height=5,find=lambda x: x.count-1)))
             logger.info(' -> %s won' % reacts[0][0])
 
+@register('squote','[quote id]',rate=2,alias='quote')
 @register('quote','[quote id]',rate=2)
 async def quote(message,*args):
     """Embed a quote from https://themork.co.uk/quotes"""
@@ -1366,21 +1367,30 @@ async def quote(message,*args):
             except:
                 user = await client.get_user_info(users[author.lower()])
 
-        embed = discord.Embed(title='TheMork Quotes',
+        if message.content.startswith(CONF.get('cmd_pref','') + 'squote'):
+            gtts.gTTS('{} said "{}"'.format(author,quote)).save("quote.mp3")
+
+            await join_voice(message)
+            if client.voice:
+                player = client.voice.create_ffmpeg_player('quote.mp3', after=lambda: disconn(client))
+                player.volume = 0.5
+                player.start() 
+        else:
+            embed = discord.Embed(title='TheMork Quotes',
                                 description=quote,
                                 type='rich',
                                 url='https://themork.co.uk/quotes/?q='+ str(id),
                                 timestamp=datetime(*date.timetuple()[:-4]),
                                 color=message.author.color
-        )
-        embed.set_thumbnail(url='https://themork.co.uk/assets/main.png')
-        try:
-            embed.set_author(name=user.display_name or user.name,icon_url=user.avatar_url or user.default_avatar_url)
-        except:
-            embed.set_author(name=author)
-        embed.set_footer(text='Quote ID: #' + str(id))
+            )
+            embed.set_thumbnail(url='https://themork.co.uk/assets/main.png')
+            try:
+                embed.set_author(name=user.display_name or user.name,icon_url=user.avatar_url or user.default_avatar_url)
+            except:
+                embed.set_author(name=author)
+            embed.set_footer(text='Quote ID: #' + str(id))
 
-        await client.send_message(message.channel,embed=embed)
+            await client.send_message(message.channel,embed=embed)
         break
 
     cursor.close()
