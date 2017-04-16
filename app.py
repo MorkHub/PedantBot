@@ -856,32 +856,43 @@ async def emoji_grid(message,*args):
 
     await client.send_message(message.channel,string)
 
-@register('showemoji')
+@register('emojis','[server ID]',alias='showemoji')
+@register('showemoji','[server ID]')
 async def showemoji(message,*args):
     """Displays all available custom emoji in this server"""
-    await client.send_message(message.channel,' '.join(['<:{0.name}:{0.id}>'.format(emoji) for emoji in message.server.emojis]))
+    server = message.server
+    if len(args) > 0:
+        try:
+            server = client.get_server(args[0])
+            if not (isowner(message.author) or server.get_member(message.author.id)):
+                server = message.server
+            emojis = ' '.join(['<:{0.name}:{0.id}>'.format(emoji) if server==message.server else '`<:{0.name}:{0.id}>`'.format(emoji) for emoji in server.emojis])
+        except:
+            await client.send_message(message.channel,message.author.mention + ' You provided an invalid server ID.')
+            return
+
+    if not 'emojis' in locals():
+        emojis = ' '.join(['<:{0.name}:{0.id}>'.format(emoji) if server==message.server else '`<:{0.name}:{0.id}>`'.format(emoji) for emoji in server.emojis])
+        
+    await client.send_message(message.channel,'Emoji in __{}__\n'.format(server.name) + emojis)
 
 @register('bigly','<custom server emoji>',alias='bigger')
 @register('bigger','<custom server emoji>')
 async def bigger(message,*args):
     """Display a larger image of the specified emoji"""
     logger.info('Debug emoji:')
-    await client.send_typing(message.channel)
 
-    try:
-        thisEmoji = args[0]
-    except:
+    if len(args) < 1:
         return False
 
-    if thisEmoji:
-        logger.info(' -> ' + thisEmoji)
+    logger.info(args)
+    id = re.findall(r'<:[^:]+:([^:>]+)>',args[0])[0]
 
     useEmoji = None
-    for server in client.servers:
-        for emoji in server.emojis:
-            if str(emoji).lower() == thisEmoji.lower():
-                useEmoji = emoji
-
+    for emoji in client.get_all_emojis():
+        if emoji.id == id:
+            useEmoji = emoji
+                
     emoji = useEmoji
     if useEmoji != None:
         logger.info(' -> id: ' + emoji.id)
@@ -889,7 +900,7 @@ async def bigger(message,*args):
 
         embed = discord.Embed(title=emoji.name,color=message.author.color)
         embed.set_image(url=emoji.url)
-        embed.set_footer(text='ID #'+emoji.id)
+        embed.set_footer(text='{emoji.id}'.format(emoji=emoji),icon_url=emoji.server.icon_url or client.user.avatar_url)
 
         await client.send_message(message.channel,embed=embed)
     else:
