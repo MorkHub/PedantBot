@@ -1176,7 +1176,7 @@ async def nicememe(message,*args):
     try:
         client.voice = await client.join_voice_channel(message.server.get_channel(args[0]))
     except:
-        pass
+        client.voice = await client.join_voice_channel([x for x in message.server.channels if x.type == discord.ChannelType.voice][0])
 
     if client.voice:
         player = client.voice.create_ffmpeg_player('/home/mark/Documents/pedant/nicememe.mp3', after=lambda: disconn(client))
@@ -1204,7 +1204,7 @@ async def disconnect(message,*args):
         client.voice = None
 
 def disconn(clnt):
-    if clnt.voice and CONF.get('voice_disconnect',True):
+    if clnt.voice:
         asyncio.run_coroutine_threadsafe(clnt.voice.disconnect(), clnt.loop).result()
         clnt.voice = None
 
