@@ -255,6 +255,14 @@ async def bot_info(message,*args):
     embed.set_footer(text="Client ID: {}".format(me.id))
 
     await client.send_message(message.channel,embed=embed)
+@register('msg','<message ID>',owner=True)
+async def get_msg(message,*args):
+   """get info about a message"""
+   if len(args) < 1: return False
+   msg = await client.get_message(message.channel,args[0])
+
+   embed = discord.Embed(title="Message info",description="Date: {}\nContent: {:.100}".format(msg.timestamp.strftime('%d %B %Y @ %I:%M%p'),msg.content))
+   await client.send_message(message.channel,embed=embed)
 
 @register('git')
 async def git(message,*args):
