@@ -1195,8 +1195,8 @@ async def summon(message,*args):
         else:
             client.voice = await client.join_voice_channel(sorted([x for x in message.server.channels if x.type == discord.ChannelType.voice], key=lambda x: x.position)[0])
 
-@register('d',owner=True,typing=False,alias='disconnect')
-@register('disconnect',owner=True,typing=False)
+@register('d',typing=False,alias='disconnect')
+@register('disconnect',typing=False)
 async def disconnect(message,*args):
     """disconnect"""
     if client.voice:
