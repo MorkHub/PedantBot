@@ -170,7 +170,7 @@ async def on_message(message):
             except Exception as e:
                 logger.exception(e)
                 msg = await client.send_message(message.channel,MESG.get('error','Error in `{1}`: {0}').format(e,command_name))
-                asyncio.ensure_future(message_timeout(msg, 40))
+                #asyncio.ensure_future(message_timeout(msg, 40))
         else:
             asyncio.ensure_future(do_record(message))
             pass
@@ -951,7 +951,9 @@ async def bigger(message,*args):
         return False
 
     logger.info(args)
-    id = re.findall(r'<:[^:]+:([^:>]+)>',args[0])[0]
+    id = re.findall(r'<:[^:]+:([^:>]+)>',args[0])
+    if len(id) < 1: return False
+    else: id = id[0]
 
     useEmoji = None
     for emoji in client.get_all_emojis():
