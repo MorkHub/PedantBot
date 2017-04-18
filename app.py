@@ -121,7 +121,6 @@ async def on_ready():
     except:
         pass
 
-    client.voice = None
 
 """Respond to messages"""
 @client.event
@@ -1093,8 +1092,9 @@ async def tts(message,*args):
     gtts.gTTS(msg).save("tts.mp3")
 
     await join_voice(message)
-    if client.voice:
-        player = client.voice.create_ffmpeg_player('tts.mp3', after=lambda: disconn(client))
+    voice = client.voice_client_in(message.server)
+    if voice:
+        player = voice.create_ffmpeg_player('tts.mp3', after=lambda: disconn(client))
         player.volume = 0.5
         player.start()
 
@@ -1120,8 +1120,9 @@ shawns = glob.glob("shawn*.mp3")
 async def press_x(message,*args):
     """Press (x) to SHAWN"""
     await join_voice(message)
-    if client.voice:
-        player = client.voice.create_ffmpeg_player(shawns[randrange(len(shawns))], after=lambda: disconn(client))
+    voice = client.voice_client_in(message.server)
+    if voice:
+        player = voice.create_ffmpeg_player(shawns[randrange(len(shawns))], after=lambda: disconn(client))
         player.volume = 0.5
         player.start()
 
@@ -1232,13 +1233,10 @@ async def rotato(message,*args):
 @register('nicememe',owner=True,rate=5,typing=False)
 async def nicememe(message,*args):
     """say nice meme"""
-    try:
-        client.voice = await client.join_voice_channel(message.server.get_channel(args[0]))
-    except:
-        client.voice = await client.join_voice_channel([x for x in message.server.channels if x.type == discord.ChannelType.voice][0])
-
-    if client.voice:
-        player = client.voice.create_ffmpeg_player('/home/mark/Documents/pedant/nicememe.mp3', after=lambda: disconn(client))
+    await join_voice(message)
+    voice = client.voice_client_in(message.server)
+    if voice:
+        player = voice.create_ffmpeg_player('/home/mark/Documents/pedant/nicememe.mp3', after=lambda: disconn(client))
         player.volume = 0.5
         player.start()
 
@@ -1246,26 +1244,21 @@ async def nicememe(message,*args):
 @register('summon',owner=True,typing=False)
 async def summon(message,*args):
     """summon"""
-    if not client.voice:
-        for chan in message.server.channels:
-            if chan.type == discord.ChannelType.voice and message.author in chan.voice_members:
-                client.voice = await client.join_voice_channel(chan)
-                break
-        else:
-            client.voice = await client.join_voice_channel(sorted([x for x in message.server.channels if x.type == discord.ChannelType.voice], key=lambda x: x.position)[0])
+    if not client.voice_client_in(message.server):
+        await join_voice(message)
 
 @register('d',typing=False,alias='disconnect')
 @register('disconnect',typing=False)
 async def disconnect(message,*args):
     """disconnect"""
-    if client.voice:
-        await client.voice.disconnect()
-        client.voice = None
+    voice = client.voice_client_in(message.server)
+    if voice:
+        await voice.disconnect()
 
 def disconn(clnt):
-    if clnt.voice:
-        asyncio.run_coroutine_threadsafe(clnt.voice.disconnect(), clnt.loop).result()
-        clnt.voice = None
+    voice = client.voice_client_in(message.server)
+    if voice:
+        asyncio.run_coroutine_threadsafe(voice.disconnect(), clnt.loop).result()
 
 @register('play','<audio track>',typing=False)
 async def play_audio(message,*args):
@@ -1343,8 +1336,9 @@ async def play_audio(message,*args):
         return
 
     await join_voice(message)
-    if client.voice:
-        player = client.voice.create_ffmpeg_player(CONF.get('dir_pref','/home/shwam3/') + 'sounds/{}.mp3'.format(args[0]), after=lambda: disconn(client))
+    voice = client.voice_client_in(message.server)
+    if voice:
+        player = voice.create_ffmpeg_player(CONF.get('dir_pref','/home/shwam3/') + 'sounds/{}.mp3'.format(args[0]), after=lambda: disconn(client))
         player.volume = 0.75
         player.start()
 
@@ -1488,8 +1482,9 @@ async def quote(message,*args):
             gtts.gTTS('{} said "{}"'.format(author,quote)).save("quote.mp3")
 
             await join_voice(message)
-            if client.voice:
-                player = client.voice.create_ffmpeg_player('quote.mp3', after=lambda: disconn(client))
+            voice = client.voice_client_in(message.server)
+            if voice:
+                player = voice.create_ffmpeg_player('quote.mp3', after=lambda: disconn(client))
                 player.volume = 0.5
                 player.start() 
         else:
@@ -1981,13 +1976,13 @@ async def do_reminder(client, invoke_time):
 
 async def join_voice(message):
     """join the nearest voice channel"""
-    if not client.voice:
+    if not client.voice_client_in(message.server):
         for chan in message.server.channels:
             if chan.type == discord.ChannelType.voice and message.author in chan.voice_members:
-                client.voice = await client.join_voice_channel(chan)
+                await client.join_voice_channel(chan)
                 break
         else:
-            client.voice = await client.join_voice_channel(sorted([x for x in message.server.channels if x.type == discord.ChannelType.voice], key=lambda x: x.position)[0])
+            await client.join_voice_channel(sorted([x for x in message.server.channels if x.type == discord.ChannelType.voice], key=lambda x: x.position)[0])
     return
 
 def generate_text_image(input_text="",colour='#ffffff'):
