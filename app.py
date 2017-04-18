@@ -1272,8 +1272,65 @@ async def play_audio(message,*args):
     """play audio in voice channel"""
     if len(args) < 1:
         files = glob.glob('sounds/*.mp3')
-        embed = discord.Embed(title="Available Audio Files",description="```\n{}```".format('\n'.join(sorted([x.replace('sounds/','').replace('.mp3','') for x in files]))),color=message.author.color)
-        await client.send_message(message.channel,embed=embed)
+        embed = discord.Embed(title="Available Audio Files",description="**NOTE:** Audio tracks longer than 10 seconds require sudo\n",color=message.author.color)
+
+        files = glob.glob("sounds/*.mp3")
+        tracks = []
+        for file in files:
+             name = re.sub(r'sounds\/(.*)\.mp3','\\1',file)
+             try:
+                 track = taglib.File(file); length = track.length; desc = track.tags['TITLE'][0]; category = track.tags['ALBUM'][0]
+             except Exception as e:
+                 desc = name; length = 0; category = 'General'
+             tracks.append( (length,name,desc,category) )
+
+        def sort(track):
+            return ("aaaaaa" if track[3] == "General" else track[3].lower()),track[1]
+        tracks = sorted(tracks,key=sort)
+        pad = len(str(len(tracks)))
+
+        msg = await client.send_message(message.channel,embed=embed)
+        display = True; o = 0; pp = 25 # number of tracks per page
+        pages = round(len(tracks)/pp//1)
+        while display:
+            tracklist = ""
+            previous = ""
+            m = ""
+            embed.description = "**NOTE:** Audio tracks longer than 10 seconds require sudo\n"
+            embed.set_footer(text="PedantBot Audio | {}/{}".format(o+1,pages+1),icon_url=client.user.avatar_url or client.user.default_avatar_url)
+            embed.clear_fields()
+            for n,track in enumerate(tracks[o*pp:(o+1)*pp]):
+                length,name,desc,category = track
+
+                tracklist += "[`{0}`], {1}\n".format(name,("< 0:01" if length < 1 else "{}:{}".format(length//60,length%60)))
+                if n == pp-1 or (o*pp+n+1) == len(tracks) or category != tracks[o*pp+n+1][3]:
+                    embed.add_field(name=category,value=tracklist,inline=False)
+                    #m += "**__{}__**\n".format(category)
+                    tracklist = ""
+                #tracklist += "{0} [{1[0]}:{1[1]}]\n".format(name,(length//60,length%60))
+
+            embed.description += m
+            await client.edit_message(msg,embed=embed)
+
+            await client.add_reaction(msg,'👈');await client.add_reaction(msg,'👉');await client.add_reaction(msg,'🚫')
+
+            def check(reation,user):
+                return user != client.user
+
+            listening = True
+            res = await client.wait_for_reaction(['👈','👉','🚫'],message=msg,check=check,user=message.author,timeout=30)
+            if res:
+                emoji = res.reaction.emoji
+                #await client.remove_reaction(msg,emoji,res.user)
+                if emoji == '🚫':
+                    diplay = False
+                    await client.delete_message(msg)
+                    return
+                elif emoji == '👈':
+                    if o > 0: o -= 1
+                elif emoji == '👉':
+                    if o+1 < len(tracks)/pp: o += 1
+
         return
 
     if not os.path.isfile(CONF.get('dir_pref','/home/shwam3/') + 'sounds/{}.mp3'.format(args[0])):
