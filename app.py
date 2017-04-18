@@ -285,8 +285,7 @@ async def me(message,*args):
         if user.game: info += "**Playing** {}\n".format("[{game.name}]({game.url})".format(game=user.game) if user.game.url else str(user.game))
         info += "**Roles**: {}\n".format(', '.join([role.mention if (role.server == message.server and  role.mentionable) else role.name for role in sorted(user.roles,key=lambda r: -r.position) if not role.is_everyone]))
         cursor = pedant_db.cursor()
-        query = "SELECT `id`,`xp` FROM `pedant`.`levels` WHERE `user_id`='{}' AND `guild_id`='{}' LIMIT 1".format(user.id,server.id)
-        cursor.execute(query)
+        cursor.execute("SELECT `id`,`xp` FROM `pedant`.`levels` WHERE `user_id`=%s AND `guild_id`=%s LIMIT 1", (user.id, server.id))
         for id,xp in cursor:
             info += "**Experience:** `{:,}`\n".format(xp)
     embed = discord.Embed(description=info,color=message.author.color)
@@ -306,8 +305,7 @@ async def get_levels(message,*args):
     if len(args) > 0: server = client.get_server(args[0])
 
     cursor = pedant_db.cursor()
-    query = "SELECT `user_id`,`xp` FROM `pedant`.`levels` WHERE `guild_id`='{}' ORDER BY `xp` DESC LIMIT 10".format(server.id)
-    cursor.execute(query)
+    cursor.execute("SELECT `user_id`,`xp` FROM `pedant`.`levels` WHERE `guild_id`=%s ORDER BY `xp` DESC LIMIT 10",(server.id,))
 
     info = ""; n = 1; xp_list = []
     for user_id,xp in cursor:
@@ -1413,12 +1411,11 @@ async def quote(message,*args):
     cnx = MySQLdb.connect(user='readonly', db='my_themork')
     cursor = cnx.cursor()
 
-    query = ("SELECT * FROM `q2` WHERE `id`='{}' ORDER BY RAND() LIMIT 1".format(id))
-    cursor.execute(query)
+    try: cursor.execute("SELECT * FROM `q2` WHERE `id`=%s ORDER BY RAND() LIMIT 1", (id,))
+    except: cursor.execute("SELECT * FROM `q2` ORDER BY RAND() LIMIT 1")
 
     if cursor.rowcount < 1:
-        query = ("SELECT * FROM `q2` ORDER BY RAND() LIMIT 1")
-        cursor.execute(query)
+        cursor.execute("SELECT * FROM `q2` ORDER BY RAND() LIMIT 1")
 
     for (id,quote,author,date,_,_) in cursor:
         if author.lower() in users:
@@ -1869,8 +1866,8 @@ async def do_record(message=None):
     else: return
 
     cursor = pedant_db.cursor()
-    query = "INSERT INTO `pedant`.`levels` (`xp`,`user_id`, `guild_id`) VALUES ({1},'{0.author.id}','{0.server.id}') ON DUPLICATE KEY UPDATE xp = xp+{1}".format(message,randrange(5,30))
-    cursor.execute(query)
+    increment_xp = randrange(5,30)
+    cursor.execute("INSERT INTO `pedant`.`levels` (`xp`,`user_id`, `guild_id`) VALUES (%s,%s,%s) ON DUPLICATE KEY UPDATE xp = xp+%s", (increment_xp, message.author.id, message.server.id, increment_xp))
     pedant_db.commit()
 
 async def do_reminder(client, invoke_time):
