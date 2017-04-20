@@ -23,11 +23,19 @@ import subprocess
 import calendar as cal
 from random import randrange
 import glob
+import io
+from PIL import Image,ImageDraw,ImageFont
+import textwrap
+import struct
+import gtts
+import requests
 
 """Dependencies"""
 import discord
+import taglib
 import morkpy.graph as graph
 from morkpy.postfix import calculate
+from morkpy.scale import scale
 import pyspeedtest
 import MySQLdb
 import wikipedia, wikia
@@ -39,6 +47,7 @@ last_message_time = {}
 reminders = []
 ALLOWED_EMBED_CHARS = ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~'
 client = discord.Client()
+pedant_db = MySQLdb.connect(user='pedant', password='7XlMqXHCLfGomDHu', db='pedant')
 
 """Command registration framework"""
 import functools,inspect
@@ -130,8 +139,7 @@ async def on_message(message):
                 if command_name in commands:
                     cmd = commands[command_name]
                 else:
-                    msg = await client.send_message(message.channel, MESG.get('cmd_notfound','`{0}` not found.').format(command_name))
-                    asyncio.ensure_future(message_timeout(msg, 40))
+                    asyncio.ensure_future(do_record(message))
                     return False
 
                 last_used = cmd.invokes.get(message.author.id,False)
@@ -147,7 +155,7 @@ async def on_message(message):
 
                     if cmd.typing:
                         await client.send_typing(message.channel)
-                    if not cmd.owner or (cmd.owner and message.author.id in CONF.get('owners',[])):
+                    if not (cmd.owner or cmd.admin) or (cmd.owner and isowner(message.author)) or (cmd.admin and (isadmin(message.author) or isowner(message.author))):
                         executed = await cmd(message,*command_args)
                         if executed == False:
                             msg = await client.send_message(message.channel,MESG.get('cmd_usage','USAGE: {}.usage').format(cmd))
@@ -164,6 +172,7 @@ async def on_message(message):
                 msg = await client.send_message(message.channel,MESG.get('error','Error in `{1}`: {0}').format(e,command_name))
                 asyncio.ensure_future(message_timeout(msg, 40))
         else:
+            asyncio.ensure_future(do_record(message))
             pass
 
     except Exception as e:
@@ -171,16 +180,71 @@ async def on_message(message):
         logger.exception(e)
         await log_exception(e, 'on_message')
 
+async def toggle_deafen(user):
+    """toggles mute/deafen every few seconds"""
+    await asyncio.sleep(randrange(7,15))
+
+    try:
+        await client.server_voice_state(user,mute=not user.voice.mute,deafen=not user.voice.deaf)
+        logger.info(' -> Toggled {} to {},{}'.format(user,'muted' if user.voice.mute else 'unmuted','deafened' if user.voice.deaf else 'undeafened'))
+        sleepies[user.id] = asyncio.ensure_future(toggle_deafen(user))
+    except:
+        t = sleepies.get(user.id,False)
+        if t:
+            t.cancel()
+        pass
+
+sleepies = {}
+@client.event
+async def on_voice_state_update(before,after):
+    roles = []
+    def bed_role(role=None):
+        if not role:
+            return False
+        return role.name == "gotobed"
+
+    for server in client.servers:
+        roles += list(filter(bed_role, server.roles))
+
+    if 0 < datetime.now().hour < 7 and not set(after.roles).isdisjoint(roles):
+        if after.voice != None and (before.voice == None or before.voice.voice_channel != after.voice.voice_channel) and not after.id in sleepies:
+            logger.info(' -> doing the thing for {}'.format(after))
+            sleepies[after.id] = asyncio.ensure_future(toggle_deafen(after))
+
 """Commands"""
 @register('test','[list of parameters]',owner=False,rate=1)
 async def test(message,*args):
     """Print debug output"""
-    msg = await client.send_message(message.channel,'```py\n{0}\n```\n```py\n{1}\n```'.format(args,message.attachments))
+    debug = '**Debug Output**```py\n'
+
+    def get_embed(embed):
+        temp = {}
+        for param in ['type','title','description','url','footer','image','video','author']:
+            try:
+                temp[param] = embed.get(param,None)
+            except:
+                pass
+        return temp
+
+    if len(args) > 0:
+        debug += '\n\nargs = {}'.format(args)
+    if len(message.attachments) > 0:
+        debug += '\n\nmessage.attachments = {}'.format(message.attachments)
+    if len(message.embeds) > 0:
+        debug += '\nmessage.embeds = {}'.format(e.to_dict() for e in message.embeds)
+    debug += "\ncolor = '{}'".format(str(message.author.color))
+    debug += '```'
+    msg = await client.send_message(message.channel,debug)
     await client.add_reaction(msg,'🚫')
     def react(reaction,user):
         return user != client.user
     await client.wait_for_reaction(emoji='🚫',message=msg,check=react)
     await client.delete_message(msg)
+
+@register('report')
+async def issues(message,*args):
+    """get url to report bugs"""
+    await client.send_message(message.channel,"Please post bug reports on GitHub.\n__https://github.com/MorkHub/PedantBot/issues__")
 
 @register('info',rate=5)
 async def bot_info(message,*args):
@@ -192,6 +256,71 @@ async def bot_info(message,*args):
     embed.set_author(name=owner.name,icon_url=owner.avatar_url or owner.default_avatar_url)
     embed.set_footer(text="Client ID: {}".format(me.id))
 
+    await client.send_message(message.channel,embed=embed)
+@register('msg','<message ID>',owner=True)
+async def get_msg(message,*args):
+   """get info about a message"""
+   if len(args) < 1: return False
+   msg = await client.get_message(message.channel,args[0])
+
+   embed = discord.Embed(title="Message info",description="Date: {}\nContent: {:.100}".format(msg.timestamp.strftime('%d %B %Y @ %I:%M%p'),msg.content))
+   await client.send_message(message.channel,embed=embed)
+
+@register('whois','[user ID] [server ID]')
+async def me(message,*args):
+    """get informartion about yourself"""
+    user = None; server = message.server; channel = message.channel
+    if len(args) > 1: server = client.get_server(args[1])
+    if len(message.mentions) > 0: user = message.mentions[0]
+    elif len(args) > 0: user = server.get_member_named(args[0]) or server.get_member(args[0])
+    if not user: user = message.author
+  
+    mutual = len([x for x in client.servers if user in x.members])
+    info  = "**Mutual servers:** `{}`\n".format(mutual)
+    info += "**User ID:** `{}`\n".format(user.id)
+    if user.nick: info += "**Nickname**: {}\n".format(user.nick)
+    info += "**Creation Date:** `{}`\n".format(discord.utils.snowflake_time(user.id).strftime('%d %B %Y @ %I:%M%p'))
+    if not channel.is_private:
+        info += "**Joined Server:** `{}`\n".format(user.joined_at.strftime('%d %B %Y @ %I:%M%p'))
+        if user.game: info += "**Playing** {}\n".format("[{game.name}]({game.url})".format(game=user.game) if user.game.url else str(user.game))
+        info += "**Roles**: {}\n".format(', '.join([role.mention if (role.server == message.server and  role.mentionable) else role.name for role in sorted(user.roles,key=lambda r: -r.position) if not role.is_everyone]))
+        cursor = pedant_db.cursor()
+        query = "SELECT `id`,`xp` FROM `pedant`.`levels` WHERE `user_id`='{}' AND `guild_id`='{}' LIMIT 1".format(user.id,server.id)
+        cursor.execute(query)
+        for id,xp in cursor:
+            info += "**Experience:** `{:,}`\n".format(xp)
+    embed = discord.Embed(description=info,color=message.author.color)
+    embed.set_author(name=user.name, icon_url=user.avatar_url or user.default_avatar_url)
+    if channel.is_private: embed.set_footer(icon_url=client.user.avatar_url or client.user.default_avatar_url,text=client.user.name)
+    else: embed.set_footer(icon_url=server.icon_url or '',text=server.name)
+    #names = {x.get_member(user.id).nick or message.author.name for x in client.servers if message.author in x.members}
+    #info += "**Other names**: {}**\n".format(', '.join(names))
+    embed.timestamp = message.timestamp
+
+    await client.send_message(message.channel,embed=embed)
+
+@register('levels','[server ID]')
+async def get_levels(message,*args):
+    """get server leaderboards"""
+    server = message.server
+    if len(args) > 0: server = client.get_server(args[0])
+
+    cursor = pedant_db.cursor()
+    query = "SELECT `user_id`,`xp` FROM `pedant`.`levels` WHERE `guild_id`='{}' ORDER BY `xp` DESC LIMIT 10".format(server.id)
+    cursor.execute(query)
+
+    info = ""; n = 1; xp_list = []
+    for user_id,xp in cursor:
+        member = server.get_member(user_id)
+        info += ("**{}. {}**: `{:,}`xp\n").format(n,member,xp)
+        xp_list.append(xp)
+        n += 1
+
+    logger.info(xp_list)
+    info += "\n```{}```".format(graph.draw(xp_list,height=4,labels=[x+1 for x in range(len(xp_list))]))
+
+    embed = discord.Embed(title="Leaderboards for {}".format(server.name),description=info,color=message.author.color)
+    embed.set_footer(icon_url=client.user.avatar_url or client.user.default_avatar_url,text="PedantBot Levels")
     await client.send_message(message.channel,embed=embed)
 
 @register('git')
@@ -220,9 +349,9 @@ async def help(message,*args):
                     standard_commands += '{0.usage}'.format(cmd) + "\n"
 
         embed = discord.Embed(title="Command Help",color=message.author.color,description='Prefix: {0}\nUSAGE: {0}command <required> [optional]\nFor more details: {0}help [command] '.format(CONF.get('cmd_pref','/')))
-        embed.add_field(name='Standard Commands',value='```'+standard_commands+'```',inline=True)
+        embed.add_field(name='Standard Commands',value='```{:.1000}```'.format(standard_commands),inline=True)
         if message.author.id in CONF.get('owners',[]):
-          embed.add_field(name='Admin Commands',value='```'+admin_commands+'```',inline=True)
+          embed.add_field(name='Admin Commands',value='```{:.400}```'.format(admin_commands),inline=True)
         embed.add_field(name='Discord Help',value='If you need help using Discord, the Help Center may be useful for you.\nhttps://support.discordapp.com/')
 
         msg = await client.send_message(message.channel,embed=embed)
@@ -263,7 +392,7 @@ async def setnick(message,*args):
     except:
         await client.send_message(message.channel,'Failed to change nickname!')
 
-@register('remindme','in <number of> [seconds|minutes|hours]')
+@register('remindme','in <number of> [seconds|minutes|hours|days]')
 async def remindme(message,*args):
     if len(args) < 3:
         return False
@@ -343,24 +472,30 @@ async def list_reminders(message,*args):
 
     for rem in reminders:
         try:
-            date = datetime.fromtimestamp(rem['time']).strftime(CONF.get('date_format','%A %d %B %Y @ %I:%M%p'))
-        except:
-            date = str(rem['time'])
+            if not message.server.get_channel(rem['channel_id']): continue
+        except: continue
 
-        if rem.get('is_cancelled',False):
-            reminders_no += '~~' + rem['user_name'] + ' at ' + date + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)~~\n'
-        else:
-            reminders_yes += rem['user_name'] + ' at ' + date + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)\n'
+        try: date = datetime.fromtimestamp(rem['time']).strftime(CONF.get('date_format','%A %d %B %Y @ %I:%M%p'))
+        except: date = str(rem['time'])
 
-    if len(reminders) == 0:
-        msg += 'No reminders'
+        if not rem.get('is_cancelled',False):
+            n=datetime.now()
+            c=(datetime.fromtimestamp(rem['time'])-n)
+            s=c.days*86400+c.seconds
+            d=(s//(86400*365),s//86400,s//3600,s//60,s)
+            for i in range(5):
+                if d[i] > 0:
+                    x = i
+                    break
+            u=['year','day','hour','minute','second']
+            m="{} {}{} remaining".format(d[x],u[x],'s' if d[x] > 1 else '')
 
-    embed = discord.Embed(title="Reminders in {}".format(message.server.name),color=message.author.color,description='No reminders set' if (len(reminders_yes)==0 and len(reminders_no)==0) else discord.Embed.Empty)
+            current_reminders += ''.join([x for x in (rem['user_mention'] + ' at ' + date + ' ({})'.format(m) + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)\n') if x in ALLOWED_EMBED_CHARS or x == '\n'])
+
+    embed = discord.Embed(title="Reminders in {}".format(message.server.name),color=message.author.color,description='No reminders set' if len(current_reminders == 0) else discord.Embed.Empty)
     embed.set_footer(icon_url=message.server.icon_url,text='{:.16} | PedantBot Reminders'.format(message.server.name))
-    if len(reminders_yes) > 0:
-        embed.add_field(name='__Current Reminders__',value=reminders_yes)
-    if len(reminders_no) > 0:
-        embed.add_field(name='__Cancelled Reminders__',value=reminders_no)
+    if len(current_reminders) > 0:
+        embed.add_field(name='__Current Reminders__',value='{:.1000}'.format(reminders_yes))
 
     msg = await client.send_message(message.channel, embed=embed)
     asyncio.ensure_future(message_timeout(msg, 90))
@@ -457,25 +592,26 @@ async def speedtest(message):
 
         down = str(round(st.download()/1024/1024,2))
         logger.info(' -> download: ' + down + 'Mb/s')
-        msg = await client.edit_message(msg, MESG.get('st_down','Speedtest:\nping: {0}ms,  up: {1}MB/s ...').format(ping,down))
+        msg = await client.edit_message(msg, MESG.get('st_down','Speedtest:\nping: {0}ms,  down: {1}MB/s ...').format(ping,down))
 
         up = str(round(st.upload()/1024/1024,2))
         logger.info(' -> upload: ' + up + 'Mb/s')
-        msg = await client.edit_message(msg, MESG.get('st_up','Speedtest:\nping: {0}ms,  up: {1}MB/s, down: {2}MB/s').format(ping,down,up))
+        msg = await client.edit_message(msg, MESG.get('st_up','Speedtest:\nping: {0}ms,  down: {1}MB/s, up: {2}MB/s').format(ping,down,up))
 
     except Exception as e:
         logger.exception(e)
         msg = await client.edit_message(msg, msg.content + MESG.get('st_error','Error.'))
         asyncio.ensure_future(message_timeout(msg, 20))
 
-@register('oauth','[OAuth client ID] [ ID]')
+@register('oauth','[OAuth client ID]')
 async def oauth_link(message,*args):
     """Get OAuth invite link"""
     logger.info('OAuth')
     if len(args) > 3:
         return False
 
-    client_id = args[0] if len(args) > 0 else None
+    appinfo = await client.application_info()
+    client_id = args[0] if len(args) > 0 else appinfo.id
     server_id = args[1] if len(args) > 1 else None
 
     msg = await client.send_message(message.channel, discord.utils.oauth_url(client_id if client_id else client.user.id,
@@ -625,6 +761,13 @@ async def define(message, *args):
             embed.set_thumbnail(url=content.images[0])
 
         await client.send_message(message.channel,embed=embed)
+    except AttributeError:
+        embed = discord.Embed(title=MESG.get('define_title','{0}').format(term),
+                              description=''.join([x for x in content if x in ALLOWED_EMBED_CHARS]),
+                              color=message.author.color,
+                              timestamp=message.timestamp,)
+        embed.set_footer(text='PedantBot Definitions',icon_url=client.user.avatar_url or client.user.avatar_default_url)
+        await client.send_message(message.channel,embed=embed)
     except Exception as e:
         logger.exception(e)
         msg = await client.send_message(message.channel,MESG.get('define_error','Error searching for {0}').format(term))
@@ -752,7 +895,7 @@ async def thyme(message,*args):
     """Send some thyme to your friends"""
     embed = discord.Embed(title='Thyme',timestamp=message.edited_timestamp or message.timestamp,color=message.author.color)
     embed.set_image(url='http://shwam3.altervista.org/thyme/image.jpg')
-    embed.set_footer(text='{} loves you long thyme'.format(member.nick or member.name))
+    embed.set_footer(text='{} loves you long thyme'.format(message.author.nick or message.author.name))
 
     await client.send_message(message.channel,embed=embed)
 
@@ -780,31 +923,43 @@ async def emoji_grid(message,*args):
 
     await client.send_message(message.channel,string)
 
-@register('showemoji')
+@register('emojis','[server ID]',alias='showemoji')
+@register('showemoji','[server ID]')
 async def showemoji(message,*args):
     """Displays all available custom emoji in this server"""
-    await client.send_message(message.channel,' '.join(['<:{0.name}:{0.id}>'.format(emoji) for emoji in message.server.emojis]))
+    server = message.server
+    if len(args) > 0:
+        try:
+            server = client.get_server(args[0])
+            if not (isowner(message.author) or server.get_member(message.author.id)):
+                server = message.server
+            emojis = ' '.join(['<:{0.name}:{0.id}>'.format(emoji) if server==message.server else '`<:{0.name}:{0.id}>`'.format(emoji) for emoji in server.emojis])
+        except:
+            await client.send_message(message.channel,message.author.mention + ' You provided an invalid server ID.')
+            return
 
+    if not 'emojis' in locals():
+        emojis = ' '.join(['<:{0.name}:{0.id}>'.format(emoji) if server==message.server else '`<:{0.name}:{0.id}>`'.format(emoji) for emoji in server.emojis])
+        
+    await client.send_message(message.channel,'Emoji in __{}__\n'.format(server.name) + emojis)
+
+@register('bigly','<custom server emoji>',alias='bigger')
 @register('bigger','<custom server emoji>')
 async def bigger(message,*args):
     """Display a larger image of the specified emoji"""
     logger.info('Debug emoji:')
-    await client.send_typing(message.channel)
 
-    try:
-        thisEmoji = args[0]
-    except:
+    if len(args) < 1:
         return False
 
-    if thisEmoji:
-        logger.info(' -> ' + thisEmoji)
+    logger.info(args)
+    id = re.findall(r'<:[^:]+:([^:>]+)>',args[0])[0]
 
     useEmoji = None
-    for server in client.servers:
-        for emoji in server.emojis:
-            if str(emoji).lower() == thisEmoji.lower():
-                useEmoji = emoji
-
+    for emoji in client.get_all_emojis():
+        if emoji.id == id:
+            useEmoji = emoji
+                
     emoji = useEmoji
     if useEmoji != None:
         logger.info(' -> id: ' + emoji.id)
@@ -812,7 +967,7 @@ async def bigger(message,*args):
 
         embed = discord.Embed(title=emoji.name,color=message.author.color)
         embed.set_image(url=emoji.url)
-        embed.set_footer(text='ID #'+emoji.id)
+        embed.set_footer(text='{emoji.id}'.format(emoji=emoji),icon_url=emoji.server.icon_url or client.user.avatar_url)
 
         await client.send_message(message.channel,embed=embed)
     else:
@@ -874,20 +1029,30 @@ async def nice(message,*args):
     """:point_right: :point_right: nice"""
     await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'nice.png')
 
-@register('nicenice')
+@register('ncie')
+async def ncie(message,*args):
+    """:point_right: :point_right: ncie"""
+    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'ncie.png')
+
+@register('ncei')
 async def nice(message,*args):
+    """minkle is bad"""
+    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'ncei.png')
+
+@register('nicenice')
+async def nicenice(message,*args):
     """:point_right: :point_right: nice"""
     await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'nicenice.png')
+
+@register('nicenicenice')
+async def nicenicenice(message,*args):
+    """:point_right: :point_right: nice"""
+    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'nicenicenice.gif')
 
 @register('oh')
 async def oh(message,*args):
     """*oh*"""
     await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'oh.png')
-
-@register('cummies')
-async def oh(message,*args):
-    """cummies"""
-    await client.send_message(message.channel,'cummies')
 
 @register('java')
 async def java(message,*args):
@@ -899,6 +1064,67 @@ async def g2a_is_bad(message,*args):
     """g2a is bad kys"""
     await client.send_message(message.channel,"https://www.reddit.com/r/pcmasterrace/comments/5rm2f7/g2a_has_flaw_in_their_system_pointed_out_to_them/")
 
+@register('cummies')
+async def sex(message,*args):
+    """cummies"""
+    await client.send_message(message.channel,'https://open.spotify.com/album/1HDC77tWM1eN43XXLG7eZq')
+
+@register('eww')
+async def sex(message,*args):
+    """terrible"""
+    await client.send_file(message.channel,"eww.png")
+
+@register('bbc')
+async def bbc(message,*args):
+    """oh fuck what now"""
+    await client.send_file(message.channel,"bbc.png")
+
+@register('doe')
+async def doe(message,*args):
+    """what you want doe"""
+    await client.send_file(message.channel,"doe.png")
+
+@register('say','<words>',typing=False)
+async def tts(message,*args):
+    """tts my dude"""
+    if len(args) < 1:
+        return False
+    msg = ' '.join(args)
+    gtts.gTTS(msg).save("tts.mp3")
+
+    await join_voice(message)
+    if client.voice:
+        player = client.voice.create_ffmpeg_player('tts.mp3', after=lambda: disconn(client))
+        player.volume = 0.5
+        player.start()
+
+@register('nut')
+async def doe(message,*args):
+    """nut"""
+    await client.send_message(message.channel,"╲⎝⧹╲⎝⧹ :regional_indicator_n: :regional_indicator_u: :regional_indicator_t:  ⧸⎠╱⧸⎠╱")
+
+@register('python')
+async def python(message,*args):
+    """python"""
+    await client.send_file(message.channel,"python.png")
+
+@register('shawn',alias='rain')
+@register('rain')
+async def rain(message,*args):
+    """Heavy Rain"""
+    shawns = ['http://ci.memecdn.com/8731766.jpg','https://i.ytimg.com/vi/rFhyZG-l5qY/maxresdefault.jpg','http://i.imgur.com/qQhNH8e.jpg']
+    await client.send_message(message.channel,shawns[randrange(len(shawns))])
+
+shawns = glob.glob("shawn*.mp3")
+@register('x',typing=False)
+async def press_x(message,*args):
+    """Press (x) to SHAWN"""
+    await join_voice(message)
+    if client.voice:
+        player = client.voice.create_ffmpeg_player(shawns[randrange(len(shawns))], after=lambda: disconn(client))
+        player.volume = 0.5
+        player.start()
+
 @register('i\'m','<name>',alias='dad')
 @register('im','<name>',alias='dad')
 @register('iam','<name>',alias='dad')
@@ -907,30 +1133,146 @@ async def dad_joke(message,*args):
     """dad jokes my dude"""
     await client.send_message(message.channel,"Hi {:.20}, I am Dad. Nice to meet you.".format(' '.join(args)))
 
-@register('nicememe',owner=True,rate=5)
+def get(url):
+    return urllib.request.urlopen(urllib.request.Request(url,data=None,headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36'}))
+
+@register('needsmorejpeg','[JPEG quality 1-100]',rate=10)
+async def jpeg(message,*args):
+    """adds more jpeg to the last image the app can find"""
+    messages = client.messages; messages.reverse()
+    def image_embed(embed):
+        return embed.get('type','') == 'image'
+    def filtered_messages(msg):
+        return msg.author != client.user
+    quality = 1
+    if len(args) > 0:
+        if args[0].isnumeric():
+            quality = int(args[0])
+    if not 1 < quality < 100:
+        quality = 1
+    if True:
+        #for msg in filter(filtered_messages,messages):
+        async for msg in client.logs_from(message.channel,limit=50,reverse=False):
+            try:
+                images = list(filter(image_embed,msg.embeds))
+                if filtered_messages(msg) and (len(msg.attachments) > 0 or len(images) > 0):
+                    url = images[0].get('url','') if len(images) > 0 else msg.attachments[0]['proxy_url']
+                    if (int(requests.head(url,headers={'Accept-Encoding': 'identity'}).headers['content-length']) / 1024 / 1024) >= 8:
+                        await client.send_message(message.channel,'Image is too large.')
+                        return
+                    attachment = get(url)
+                    content_type = attachment.headers.get_content_type()
+                    if 'image' in content_type:
+                        img_file = io.BytesIO(attachment.read())
+                        img = Image.open(img_file)
+                        outfile = os.path.join('tmp_{}.jpeg'.format(msg.id))
+                        img.save(outfile,"JPEG",quality=quality)
+                        await client.send_file(message.channel,'tmp_{}.jpeg'.format(msg.id))
+                        return
+            except:
+                pass
+    else:
+        await client.send_m(message.channel,'No essages found (I can only read messages sent while I am connected.)')
+
+@register('image','<text>',rate=5)
+async def image_gen(message,*args):
+    """draw image with words"""
+    if len(args) < 1:
+        return False
+
+    input_text = ' '.join(args)
+    image = generate_text_image(input_text,str(message.author.color))
+    image.save('test.png','PNG')
+    await client.send_file(message.channel,'test.png',content="**{}** sent this".format(message.author))
+
+@register('bren','<url to image>',rate=10)
+async def bren_think(message,*args):
+    """creates an image of brendaniel thinking about things"""
+
+    def image_embed(embed):
+        return embed.get('type','') == 'image'
+    def filtered_messages(msg):
+        return msg.author != client.user
+
+    if len(args) < 1:
+        return False
+
+    fg = Image.open(get(args[0]))
+    bg = Image.open("bren.png")
+
+    w,h = fg.size
+    ratio = round(w/h)
+    MAX = 180
+    #w2,h2 = MAX,MAX*ratio
+    w2,h2 = scale(w,h)
+
+    fg2 = fg.resize((min(w2,MAX),min(MAX,h2)))
+    draw = ImageDraw.Draw(bg)
+
+    bg.paste(fg2,(120+round((MAX-w2)/2),110+round((MAX-h2)/2)))
+    bg.save('bren_2.png','PNG')
+    await client.send_file(message.channel,'bren_2.png',filename="bren thinking.png")
+
+@register('rotato','<image url> [rotato amount]',rate=5)
+async def rotato(message,*args):
+    """rotate image"""
+    if len(args) < 1:
+        return False
+
+    if len(args) > 1 and args[1].isnumeric():
+        rotato = int(args[1])
+    else:
+        rotato = 180
+
+    fg = Image.open(get(args[0]))
+    fg.rotate(rotato).save("rotato.png","PNG")
+
+    await client.send_file(message.channel,"rotato.png",filename="rotato.png")
+
+@register('nicememe',owner=True,rate=5,typing=False)
 async def nicememe(message,*args):
     """say nice meme"""
     try:
         client.voice = await client.join_voice_channel(message.server.get_channel(args[0]))
     except:
-        pass
+        client.voice = await client.join_voice_channel([x for x in message.server.channels if x.type == discord.ChannelType.voice][0])
 
+    if client.voice:
+        player = client.voice.create_ffmpeg_player('/home/mark/Documents/pedant/nicememe.mp3', after=lambda: disconn(client))
+        player.volume = 0.5
+        player.start()
+
+@register('s',owner=True,typing=False,alias='summon')
+@register('summon',owner=True,typing=False)
+async def summon(message,*args):
+    """summon"""
     if not client.voice:
         for chan in message.server.channels:
             if chan.type == discord.ChannelType.voice and message.author in chan.voice_members:
                 client.voice = await client.join_voice_channel(chan)
+                break
+        else:
+            client.voice = await client.join_voice_channel(sorted([x for x in message.server.channels if x.type == discord.ChannelType.voice], key=lambda x: x.position)[0])
 
+@register('d',typing=False,alias='disconnect')
+@register('disconnect',typing=False)
+async def disconnect(message,*args):
+    """disconnect"""
     if client.voice:
-        player = client.voice.create_ffmpeg_player('/home/mark/Documents/pedant/nicememe.mp3')
-        player.volume = 0.5
-        player.start()
+        await client.voice.disconnect()
+        client.voice = None
+
+def disconn(clnt):
+    if clnt.voice:
+        asyncio.run_coroutine_threadsafe(clnt.voice.disconnect(), clnt.loop).result()
+        clnt.voice = None
 
 @register('play','<audio track>',typing=False)
 async def play_audio(message,*args):
     """play audio in voice channel"""
     if len(args) < 1:
         files = glob.glob('sounds/*.mp3')
-        embed = discord.Embed(title="Available Audio Files",description="```\n{}```".format('\n'.join([x.replace('sounds/','').replace('.mp3','') for x in files])),color=message.author.color)
+        embed = discord.Embed(title="Available Audio Files",description="```\n{}```".format('\n'.join(sorted([x.replace('sounds/','').replace('.mp3','') for x in files]))),color=message.author.color)
         await client.send_message(message.channel,embed=embed)
         return
 
@@ -938,19 +1280,16 @@ async def play_audio(message,*args):
         await client.send_message(message.channel,'Audio track `{}` not found.'.format(args[0]))
         return
 
-    if not client.voice:
-        for chan in message.server.channels:
-            if chan.type == discord.ChannelType.voice and message.author in chan.voice_members:
-                client.voice = await client.join_voice_channel(chan)
+    track = taglib.File('sounds/{}.mp3'.format(args[0]))
+    if track.length > 10 and not (isadmin(message.author) or isowner(message.author)):
+        await client.send_message(message.channel,'Fuck off that\'s too long')
+        return
 
+    await join_voice(message)
     if client.voice:
-        player = client.voice.create_ffmpeg_player(CONF.get('dir_pref','/home/shwam3/') + 'sounds/{}.mp3'.format(args[0]))
+        player = client.voice.create_ffmpeg_player(CONF.get('dir_pref','/home/shwam3/') + 'sounds/{}.mp3'.format(args[0]), after=lambda: disconn(client))
         player.volume = 0.75
         player.start()
-        #while not player.is_done():
-            #asyncio.sleep(1)
-        #await client.voice.disconnect()
-        #client.voice = None
 
 @register('feshpince','<part #>',rate=5)
 async def feshpince(message,*args):
@@ -1037,12 +1376,15 @@ async def vote(message,*args):
             logger.info(' -> no winner')
 
         else:
-            reacts = sorted(reacts, key=lambda x: x[1])
-            reacts.reverse()
+            winner = sorted(reacts, key=lambda x: -x[1])[0]
 
-            await client.send_message(msg.channel,MESG.get('vote_win','"{0}", Winner: {1}').format(question,reacts[0][0],graph=graph.draw(msg.reactions,height=5,find=lambda x: x.count-1)))
+            output = graph.draw(reacts,height=5,find=lambda x: x[1])
+            output += "\n" + ''.join([x[0] if len(x[0]) == 1 else reacts.index(x) for x in reacts])
+
+            await client.send_message(msg.channel,MESG.get('vote_win','"{0}", Winner: {1}').format(question,winner[0],graph=output))
             logger.info(' -> %s won' % reacts[0][0])
 
+@register('squote','[quote id]',rate=2,alias='quote')
 @register('quote','[quote id]',rate=2)
 async def quote(message,*args):
     """Embed a quote from https://themork.co.uk/quotes"""
@@ -1059,7 +1401,7 @@ async def quote(message,*args):
              'dawid':'184736498824773634',
              'jaime':'233244375285628928',
              'oliver barnwell':'188672208233693184',
-             'orane':'',
+             'orane':'100816656372097024',
              'william':'191332830519885824',
              'shwam3':'154543065594462208',
              'themork':'154542529591771136',
@@ -1086,21 +1428,30 @@ async def quote(message,*args):
             except:
                 user = await client.get_user_info(users[author.lower()])
 
-        embed = discord.Embed(title='TheMork Quotes',
+        if message.content.startswith(CONF.get('cmd_pref','') + 'squote'):
+            gtts.gTTS('{} said "{}"'.format(author,quote)).save("quote.mp3")
+
+            await join_voice(message)
+            if client.voice:
+                player = client.voice.create_ffmpeg_player('quote.mp3', after=lambda: disconn(client))
+                player.volume = 0.5
+                player.start() 
+        else:
+            embed = discord.Embed(title='TheMork Quotes',
                                 description=quote,
                                 type='rich',
                                 url='https://themork.co.uk/quotes/?q='+ str(id),
                                 timestamp=datetime(*date.timetuple()[:-4]),
                                 color=message.author.color
-        )
-        embed.set_thumbnail(url='https://themork.co.uk/assets/main.png')
-        try:
-            embed.set_author(name=user.display_name or user.name,icon_url=user.avatar_url or user.default_avatar_url)
-        except:
-            embed.set_author(name=author)
-        embed.set_footer(text='Quote ID: #' + str(id))
+            )
+            embed.set_thumbnail(url='https://themork.co.uk/assets/main.png')
+            try:
+                embed.set_author(name=user.display_name or user.name,icon_url=user.avatar_url or user.default_avatar_url)
+            except:
+                embed.set_author(name=author)
+            embed.set_footer(text='Quote ID: #' + str(id))
 
-        await client.send_message(message.channel,embed=embed)
+            await client.send_message(message.channel,embed=embed)
         break
 
     cursor.close()
@@ -1116,10 +1467,24 @@ async def calendar(message,*args):
     msg = await client.send_message(message.channel,embed=embed)
     asyncio.ensure_future(message_timeout(msg, 120))
 
+
+@register('id','[DiscordTag#0000] [server ID]',owner=True)
+async def get_user_id(message,*args):
+    """get User ID by DiscordTag#0000"""
+    if len(args) == 0:
+        id = message.author.id
+    if len(args) == 1:
+        id = message.server.get_member_named(args[0]).id
+    else:
+        id = client.get_server(args[1]).get_member_named(args[0]).id
+
+    await client.send_message(message.channel, "{}'s ID is `{}`".format(args[0] if len(args) > 0 else message.author, id))
+
 @register('servers',owner=True)
 async def connected_servers(message,*args):
     """Lists servers currently connected"""
-    servers = ['•   **{server.name}** (`{server.id}`)'.format(server=x) for x in client.servers]
+
+    servers = ['•   __{owner.name}\'s__ **{server.name}** (`{server.id}`)'.format(owner=x.owner,server=x) for x in client.servers]
 
     embed = discord.Embed(title='Servers {0} is connected to.'.format(client.user),
                           colour=message.author.color,
@@ -1151,7 +1516,7 @@ async def connected_channels(message,*args):
 
     listening = True
     while listening:
-        res = await client.wait_for_reaction(['👈','👉','🚫'],message=msg,check=check,timeout=30)
+        res = await client.wait_for_reaction(['👈','👉','🚫'],message=msg,check=check,user=message.author,timeout=30)
         if res:
             emoji = res.reaction.emoji
             await client.remove_reaction(msg,emoji,res.user)
@@ -1171,6 +1536,7 @@ async def connected_channels(message,*args):
             embed.title = "Channels in {server.name}".format(server=currentServer)
             embed.description = '\n'.join(['•   **{channel.name}** (`{channel.id}`) "{channel.topic}"'.format(channel=x) for x in currentServer.channels if x.type == discord.ChannelType.text])
             embed.set_footer(text=('Prev: {} | '.format(servers[currentIndex -1].name) if currentIndex > 0 else '') + 'Current: {}'.format(currentServer.name) + (' |  Next: {}'.format(servers[currentIndex + 1].name) if currentIndex < len(servers)-1 else ''))
+            if currentServer.icon_url: embed.set_thumbnail(url=currentServer.icon_url or discord.Embed.Empty)
             await client.edit_message(msg, embed=embed)
         else:
             listening = False
@@ -1183,7 +1549,7 @@ async def connected_channels(message,*args):
 async def server_ranks(message,*args):
     """Displays a list of ranks in the server"""
     embed = discord.Embed(title='Ranks for {server.name}.'.format(server=message.server), colour=message.author.color)
-    for role in message.server.roles:
+    for role in sorted(message.server.roles,key=lambda r: -r.position):
         if not role.is_everyone:
             members = ['•   **{user.name}** (`{user.id}`)'.format(user=x) for x in message.server.members if role in x.roles]
             if len(members) > 0:
@@ -1207,9 +1573,14 @@ async def age(message,*args):
     for mention in message.mentions:
         users.append(mention)
 
+    def age(user=discord.User()):
+        return discord.utils.snowflake_time(user.id)
+
     string = ''
-    for user in users:
-        string += '•  **{user}**:`{user.id}` joined on `{date}`\n'.format(user=user,date=discord.utils.snowflake_time(user.id).strftime('%d %B %Y @ %I:%M%p'))
+    users = sorted(users,key=age)
+    for n,user in enumerate(sorted(users,key=age)):
+        user.name = re.sub(r'([*_])',r'\\\1',user.name)
+        string += '{n:>2}.  **{user}**:`{user.id}` joined on `{date}`\n'.format(n=n+1,user=user,date=age(user).strftime('%d %B %Y @ %I:%M%p'))
 
     embed = discord.Embed(title="Age of users in {server.name}".format(server=message.server),
         color=message.author.color,
@@ -1217,6 +1588,31 @@ async def age(message,*args):
 
     msg = await client.send_message(message.channel,embed=embed)
     asyncio.ensure_future(message_timeout(msg, 180))
+
+@register('purge','[message limit]',rate=5)
+async def purge(message,*args):
+    """delete all messages"""
+    deleted = []
+    limit = 500
+    if len(args) > 0 and args[0].isnumeric():
+        limit = int(args[0])
+    if isadmin(message.author) and message.server.id != '154543502313652224':
+        try:
+            deleted = await client.purge_from(message.channel,limit=limit)
+        except:
+            pass
+        await client.send_message(message.channel,'Purged {} messages from {}.'.format(len(deleted),message.channel.mention))
+    else:
+        await client.send_message(message.channel,"Fuck off with that, you don't have permission to purge {}".format(message.channel.mention))
+
+@register('clean','[number of messages]',owner=True,rate=10,typing=False)
+async def clean(message,*args):
+    """delete bot messages"""
+    limit = 10
+    if len(args) > 0:
+        if args[0].isnumeric():
+            limit = int(args[0])
+    await client.purge_from(message.channel,check=lambda m: m.author == client.user,limit=limit)
 
 @register('abuse','<channel> <content>',owner=True,alias='sendmsg')
 @register('sendmsg','<channel> <content>',owner=True)
@@ -1249,6 +1645,31 @@ async def perms(message,*args):
 
     msg = await client.send_message(message.channel, "**Perms for {user.name} in {server.name}:** ({1.value})\n```{0}```".format('\n'.join(perms_list),perms,user=member,server=message.server))
     asyncio.ensure_future(message_timeout(msg, 120))
+
+@register('hole','@<mention users>',admin=True)
+async def hole(message,*args):
+    """move user to the hole"""
+    hole = [x for x in message.server.channels if 'hole' in x.name.lower() and x.type == discord.ChannelType.voice]
+    if len(hole) < 1:
+        await client.send_message(message.channel,"There is no hole channel.")
+        return
+    elif len(hole) > 1:
+        prompt =await client.send_message(message.channel,"There are multiple hole channels, please select one. ```{}```".format('\n'.join([str(i) + " " + hole[i].name for i in range(len(hole))])))
+        res = await client.wait_for_message(author=message.author,channel=message.channel,check=lambda m: m.content.isnumeric() and 0 < int(m.content) < len(hole))
+        channel = hole[int(res.content)]
+        try:
+            await client.delete_message(res)
+            await client.delete_message(prompt)
+        except: pass
+    else:
+        channel = hole[0]
+
+    for user in message.mentions:
+        channels = [x for x in message.server.channels if x.type == discord.ChannelType.voice and user in x.voice_members]
+        if len(channels) < 1:
+            await client.send_message(message.channel,"User is not in a voice channel.")
+            return
+        await client.move_member(user,channel)
 
 @register('kick','@<mention users>',owner=True)
 async def kick(message,*args):
@@ -1341,8 +1762,8 @@ async def banned_users(message,*args):
     msg = await client.send_message(message.channel,embed=embed)
     asyncio.ensure_future(message_timeout(msg, 60))
 
-@register('fkoff',owner=True,alias='restart')
-@register('restart',owner=True)
+@register('fkoff',owner=True,alias='restart',typing=False)
+@register('restart',owner=True,typing=False)
 async def fkoff(message,*args):
     """Restart the bot"""
     logger.info('Stopping')
@@ -1373,7 +1794,8 @@ async def do_calc(message,*args):
     else:
         logger.info(' -> ' + str(maths))
         try:
-            await client.send_message(message.channel,'`{} = {}`'.format(maths,calculate(maths)))
+            ans = calculate(maths)
+            await client.send_message(message.channel,'`{} = {}`'.format(maths,"The Universe, Life and Everything" if ans == 42 else ans))
         except Exception as e:
             logger.exception(e)
             await client.send_message(message.channel, MESG.get('maths_illegal','Error in {0}').format(maths))
@@ -1398,6 +1820,26 @@ async def log_exception(e,location=None):
     except:
         pass
 
+def isowner(user=discord.User()):
+    """returns True if the user is in the list of sudoers"""
+    return user.id in CONF.get("owners",[])
+
+def isadmin(member):
+    """returns True if the user is in the list of sudoers, or is an admin in the current server"""
+    return member.server_permissions.administrator
+
+def has_perm(permissions=discord.Permissions(),required=[]):
+    """returns True if the supplied permissions contains the required"""
+    if len(required) == 0: return True
+    if type(required) == type(''): required = required.split(',')
+
+    for permission in required:
+        try:
+            if not (permissions.__getattribute__(permission) or permissions.administrator): return False
+        except:
+            return False
+    return True
+
 async def message_timeout(message,timeout):
     """Deletes the specified message after the allotted time has passed"""
     if timeout > 0:
@@ -1414,6 +1856,21 @@ def get_reminder(invoke_time):
             return rem
 
     return None
+
+users={}
+async def do_record(message=None):
+    """scores points for user on message"""
+    if message.author.bot: return
+    last = users.get((message.author.id,message.server.id),0)
+    now = datetime.now().timestamp()
+    if last+60 < now:
+       users[(message.author.id,message.server.id)] = now
+    else: return
+
+    cursor = pedant_db.cursor()
+    query = "INSERT INTO `pedant`.`levels` (`xp`,`user_id`, `guild_id`) VALUES ({1},'{0.author.id}','{0.server.id}') ON DUPLICATE KEY UPDATE xp = xp+{1}".format(message,randrange(5,30))
+    cursor.execute(query)
+    pedant_db.commit()
 
 async def do_reminder(client, invoke_time):
     """Schedules and executes reminder"""
@@ -1464,6 +1921,50 @@ async def do_reminder(client, invoke_time):
 
     if cancel_ex:
         raise cancel_ex
+
+async def join_voice(message):
+    """join the nearest voice channel"""
+    if not client.voice:
+        for chan in message.server.channels:
+            if chan.type == discord.ChannelType.voice and message.author in chan.voice_members:
+                client.voice = await client.join_voice_channel(chan)
+                break
+        else:
+            client.voice = await client.join_voice_channel(sorted([x for x in message.server.channels if x.type == discord.ChannelType.voice], key=lambda x: x.position)[0])
+    return
+
+def generate_text_image(input_text="",colour='#ffffff'):
+    """returns Image with text in it"""
+    if '\n' in input_text:
+        wrap_text = input_text.splitlines()
+    else:
+        wrap_text = textwrap.wrap(input_text, width=30)
+    current_h, pad = 10, 10
+    colour = colour.replace('#','')
+
+    MAX_W, MAX_H = 200, 200
+    im = Image.new('RGBA', (MAX_W, MAX_H), (0, 0, 0, 255))
+    draw = ImageDraw.Draw(im)
+    font = ImageFont.truetype('FreeMono.ttf', 18)
+
+    MAX_W = sorted([draw.textsize(x, font=font)[0] for x in wrap_text],key=lambda w: -w)[0] + pad
+    MAX_H = (draw.textsize(wrap_text[0], font=font)[1]) * len(wrap_text) + 2*pad
+    im = Image.new('RGB',(MAX_W+20, MAX_H), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(im)
+
+    def text_outline(draw,text="",x=0,y=0,fill="white",stroke="black",thickness=1):
+        """draw text with stroke"""
+        coords = [(x+thickness,y),(x-thickness,y),(x,y+thickness),(x,y-thickness)]
+        for loc in coords:
+            draw.text(loc,text,stroke,font)
+        draw.text((x,y),text,fill,font)
+
+    for line in wrap_text:
+        w, h = draw.textsize(line, font=font)
+        draw.text(((MAX_W - w + pad) / 2, current_h), line, font=font,fill=struct.unpack('BBB',bytes.fromhex(colour)))
+        current_h += h
+
+    return im
 
 """Exit procedure"""
 @atexit.register
