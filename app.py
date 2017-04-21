@@ -950,23 +950,18 @@ async def bigger(message,*args):
         return False
 
     logger.info(args)
-    id = re.findall(r'<:[^:]+:([^:>]+)>',args[0])
-    if len(id) < 1: return False
-    else: id = id[0]
+    try: name,id = re.findall(r'<:([^:]+):([^:>]+)>',args[0])[0]
+    except: return False
 
-    useEmoji = None
-    for emoji in client.get_all_emojis():
-        if emoji.id == id:
-            useEmoji = emoji
-                
-    emoji = useEmoji
-    if useEmoji != None:
-        logger.info(' -> id: ' + emoji.id)
-        logger.info(' -> url: ' + emoji.url)
+    url = "https://cdn.discordapp.com/emojis/{}.png".format(id)
+    if not requests.get(url).status_code == 200:
+        await client.send_message(message.channel,"Emoji not found.")
+        return
 
-        embed = discord.Embed(title=emoji.name,color=message.author.color)
-        embed.set_image(url=emoji.url)
-        embed.set_footer(text='{emoji.id}'.format(emoji=emoji),icon_url=emoji.server.icon_url or client.user.avatar_url)
+    if url and name:
+        embed = discord.Embed(title=name,color=message.author.color)
+        embed.set_image(url=url)
+        embed.set_footer(text='{id}'.format(id=id))
 
         await client.send_message(message.channel,embed=embed)
     else:
