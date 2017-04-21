@@ -961,7 +961,7 @@ async def bigger(message,*args):
     if url and name:
         embed = discord.Embed(title=name,color=message.author.color)
         embed.set_image(url=url)
-        embed.set_footer(text='{id}'.format(id=id))
+        embed.set_footer(text=id)
 
         await client.send_message(message.channel,embed=embed)
     else:
