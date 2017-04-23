@@ -558,7 +558,9 @@ async def edit_reminder(message,*args):
 @register('ping','[<host> [count]]',rate=5)
 async def ping(message,*args):
     """Test latency by receiving a ping message"""
-    await client.send_message(message.channel, MESG.get('ping','Pong.'))
+    d = datetime.utcnow() - message.timestamp
+    s = d.seconds*1000 + d.microseconds//1000
+    await client.send_message(message.channel, ":ping_pong: Pong! {}ms".format(s))
 
 @register('ip', owner=True)
 async def ip(message,*args,owner=True):
@@ -1251,10 +1253,21 @@ async def disconnect(message,*args):
     if voice:
         await voice.disconnect()
 
-def disconn(clnt):
-    voice = client.voice_client_in(message.server)
+def disconn(clnt,server):
+    voice = clnt.voice_client_in(server)
     if voice:
         asyncio.run_coroutine_threadsafe(voice.disconnect(), clnt.loop).result()
+
+@register('new')
+async def new_audio(message,*args):
+    """list 5th (or nth) latest audio tracks for `/play`"""
+    if len(args) > 0 and args[0].isnumeric(): limit = int(args[0])
+    else: limit = 5
+    t=datetime.now()
+    files = sorted([(datetime.fromtimestamp(os.path.getmtime(x)),x) for x in glob.glob('sounds/*.mp3')], key=lambda f: t-f[0])[:limit]
+    embed = discord.Embed(title="Recently Added Audio Files",description="Top {} latest audio files.\n```\n{}```".format(limit,'\n'.join([re.sub(r'sounds\/(.*)\.mp3','\\1',x[1]) for x in files])),color=message.author.color)    
+
+    await client.send_message(message.channel,embed=embed)
 
 @register('play','<audio track>',typing=False)
 async def play_audio(message,*args):
@@ -1882,8 +1895,10 @@ def isadmin(member):
 
 def has_perm(permissions=discord.Permissions(),required=[]):
     """returns True if the supplied permissions contains the required"""
-    if len(required) == 0: return True
-    if type(required) == type(''): required = required.split(',')
+    if not isinstance(permissions,discord.permissions): return False
+    if isinstance(required,str): required = required.split(',')
+    if isinstance(required,discord.Permissions): return permissions >= required
+    if not required: return True
 
     for permission in required:
         try:
