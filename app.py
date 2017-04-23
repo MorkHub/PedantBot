@@ -290,7 +290,7 @@ async def me(message,*args):
     embed = discord.Embed(description=info,color=message.author.color)
     embed.set_author(name=user.name, icon_url=user.avatar_url or user.default_avatar_url)
     if channel.is_private: embed.set_footer(icon_url=client.user.avatar_url or client.user.default_avatar_url,text=client.user.name)
-    else: embed.set_footer(icon_url=server.icon_url or '',text=server.name)
+    else: embed.set_footer(icon_url=server_icon(server) or '',text=server.name)
     #names = {x.get_member(user.id).nick or message.author.name for x in client.servers if message.author in x.members}
     #info += "**Other names**: {}**\n".format(', '.join(names))
     embed.timestamp = message.timestamp
@@ -465,7 +465,7 @@ async def list_reminders(message,*args):
     logger.info('Listing reminders')
 
     msg = 'Current reminders:\n'
-    reminders_yes = ''; reminders_no = ''
+    reminders_yes = ''
 
     for rem in reminders:
         try:
@@ -477,7 +477,8 @@ async def list_reminders(message,*args):
 
         if not rem.get('is_cancelled',False):
             n=datetime.now()
-            c=(datetime.fromtimestamp(rem['time'])-n)
+            try: c=(datetime.fromtimestamp(rem['time'])-n)
+            except: continue
             s=c.days*86400+c.seconds
             d=(s//(86400*365),s//86400,s//3600,s//60,s)
             for i in range(5):
@@ -487,11 +488,11 @@ async def list_reminders(message,*args):
             u=['year','day','hour','minute','second']
             m="{} {}{} remaining".format(d[x],u[x],'s' if d[x] > 1 else '')
 
-            current_reminders += ''.join([x for x in (rem['user_mention'] + ' at ' + date + ' ({})'.format(m) + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)\n') if x in ALLOWED_EMBED_CHARS or x == '\n'])
+            reminders_yes += ''.join([x for x in (rem['user_mention'] + ' at ' + date + ' ({})'.format(m) + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)\n') if x in ALLOWED_EMBED_CHARS or x == '\n'])
 
-    embed = discord.Embed(title="Reminders in {}".format(message.server.name),color=message.author.color,description='No reminders set' if len(current_reminders == 0) else discord.Embed.Empty)
-    embed.set_footer(icon_url=message.server.icon_url,text='{:.16} | PedantBot Reminders'.format(message.server.name))
-    if len(current_reminders) > 0:
+    embed = discord.Embed(title="Reminders in {}".format(message.server.name),color=message.author.color,description='No reminders set' if len(reminders) == 0 else discord.Embed.Empty)
+    embed.set_footer(icon_url=server_icon(message.server),text='{:.16} | PedantBot Reminders'.format(message.server.name))
+    if len(reminders) > 0:
         embed.add_field(name='__Current Reminders__',value='{:.1000}'.format(reminders_yes))
 
     msg = await client.send_message(message.channel, embed=embed)
@@ -988,7 +989,7 @@ async def avatar(message,*args):
 async def serveravatar(message,*args):
     """Show the avatar for the current server"""
     server = message.server
-    avatar = server.icon_url
+    avatar = server_icon(server)
     embed = discord.Embed(title='Image for {server.name}'.format(server=server), color=message.author.color)
     embed.set_image(url=avatar)
 
@@ -1856,6 +1857,10 @@ async def skinn_link(message,*args):
     await client.send_message(message.channel, 'https://twitter.com/4eyes_/status/805851294292381696')
 
 """Utility functions"""
+def server_icon(server):
+    """return better url for server than discord.Server.icon_url"""
+    return "https://cdn.discordapp.com/icons/{server.id}/{server.icon}.webp".format(server=server) if server.icon_url else None 
+
 async def log_exception(e,location=None):
     """Log exceptions nicely"""
     try:
@@ -1992,7 +1997,7 @@ def generate_text_image(input_text="",colour='#ffffff'):
     MAX_W, MAX_H = 200, 200
     im = Image.new('RGBA', (MAX_W, MAX_H), (0, 0, 0, 255))
     draw = ImageDraw.Draw(im)
-    font = ImageFont.truetype('FreeMono.ttf', 18)
+    font = ImageFont.truetype('NotoMono-Regular.ttf', 18)
 
     MAX_W = sorted([draw.textsize(x, font=font)[0] for x in wrap_text],key=lambda w: -w)[0] + pad
     MAX_H = (draw.textsize(wrap_text[0], font=font)[1]) * len(wrap_text) + 2*pad
