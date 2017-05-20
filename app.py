@@ -1701,6 +1701,20 @@ async def calendar(message,*args):
     msg = await client.send_message(message.channel,embed=embed)
     asyncio.ensure_future(message_timeout(msg, 120))
 
+@register('roll','<dice eg. 2d8+3>')
+async def dice_roll(message,*args):
+    """roll a die or dice"""
+    if not args: args = ('1d20',)
+    rolls = roll_dice(' '.join(args))
+    if not rolls: return False
+
+    msg = ''
+    for roll in rolls:
+        msg += "•	`{}` total: `{}`\n".format(*roll)
+    embed = discord.Embed(title="{} rolls {} {}.".format(message.author,len(rolls),'die' if len(rolls) == 1 else 'dice'), description=msg, colour=message.author.colour)
+    embed.set_footer(icon_url="https://themork.co.uk/wiki/images/4/4c/Dice.png",text="PedantBot Dice")
+
+    await client.send_message(message.channel,embed=embed)
 
 @register('id','[DiscordTag#0000] [server ID]',owner=True)
 async def get_user_id(message,*args):
