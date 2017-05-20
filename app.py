@@ -1162,6 +1162,25 @@ async def python(message,*args):
     """python"""
     await client.send_file(message.channel,"python.png")
 
+@register('minkle')
+async def minkle(message,*args):
+    """i am minkle"""
+    await client.send_file(message.channel,"minkle.png")
+
+@register('nudes')
+async def nudes(message,*args):
+    """send nudes"""
+    embed = discord.Embed(color=message.author.colour)
+    embed.set_image(url='https://cdn.discordapp.com/attachments/304581721343393793/306484805938446338/sendnudes.png')
+    await client.send_message(message.channel,embed=embed)
+
+@register('theme')
+async def show_theme(message,*args):
+    """what theme bro"""
+    embed = discord.Embed(color=message.author.colour)
+    embed.set_image(url='https://themork.co.uk/theme.png')
+    await client.send_message(message.channel,embed=embed)
+
 @register('shawn',alias='rain')
 @register('rain')
 async def rain(message,*args):
