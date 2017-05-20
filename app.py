@@ -786,6 +786,13 @@ async def define(message, *args):
             embed.set_thumbnail(url=content.images[0])
 
         await client.send_message(message.channel,embed=embed)
+    except AttributeError:
+        embed = discord.Embed(title=MESG.get('define_title','{0}').format(term),
+                              description=''.join([x for x in content if x in ALLOWED_EMBED_CHARS]),
+                              color=message.author.color,
+                              timestamp=message.timestamp,)
+        embed.set_footer(text='PedantBot Definitions',icon_url=client.user.avatar_url or client.user.avatar_default_url)
+        await client.send_message(message.channel,embed=embed)
     except Exception as e:
         logger.exception(e)
         msg = await client.send_message(message.channel,MESG.get('define_error','Error searching for {0}').format(term))
@@ -850,13 +857,6 @@ async def define(message, *args):
         if len(content.images) >= 1:
             embed.set_thumbnail(url=content.images[0])
 
-        await client.send_message(message.channel,embed=embed)
-    except AttributeError:
-        embed = discord.Embed(title=MESG.get('define_title','{0}').format(term),
-                              description=''.join([x for x in content if x in ALLOWED_EMBED_CHARS]),
-                              color=message.author.color,
-                              timestamp=message.timestamp,)
-        embed.set_footer(text='PedantBot Definitions',icon_url=client.user.avatar_url or client.user.avatar_default_url)
         await client.send_message(message.channel,embed=embed)
     except Exception as e:
         logger.exception(e)
