@@ -1544,18 +1544,7 @@ async def vote(message,*args):
             await client.send_message(msg.channel,MESG.get('vote_win','"{0}", Winner: {1}').format(question,winner[0],graph=output))
             logger.info(' -> %s won' % reacts[0][0])
 
-@register('squote','[quote id]',rate=2,alias='quote')
-@register('quote','[quote id]',rate=2)
-async def quote(message,*args):
-    """Embed a quote from https://themork.co.uk/quotes"""
-    logger.info('Quote')
-
-    try:
-        id = args[0]
-    except:
-        id = ''
-
-    users = {'kush':'94897568776982528',
+quote_users = {'kush':'94897568776982528',
              'david b':'240904516269113344',
              'beard matt':'143529460744978432',
              'dawid':'184736498824773634',
@@ -1567,8 +1556,21 @@ async def quote(message,*args):
              'themork':'154542529591771136',
              'wensleydale':'154565902828830720',
              'minkle':'130527313673584640',
-             'chris':'192671450388234240'
+             'chris':'192671450388234240',
+             'becca':'156902386785452034',
+             'dmeta':'221976004745232385',
              }
+
+@register('scrote','[quote id]',rate=2,alias='quote')
+@register('squote','[quote id]',rate=2,alias='quote')
+@register('quote','[quote id]',rate=2)
+async def quote(message,*args):
+    """Embed a quote from https://themork.co.uk/quotes"""
+    global quote_users
+    logger.info('Quote')
+
+    try: id = args[0]
+    except: id = ''
 
     cnx = MySQLdb.connect(user='readonly', db='my_themork')
     cursor = cnx.cursor()
