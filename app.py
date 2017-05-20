@@ -2058,6 +2058,60 @@ async def skinn_link(message,*args):
     await client.send_message(message.channel, 'https://twitter.com/4eyes_/status/805851294292381696')
 
 """Utility functions"""
+def roll_dice(inp:str="") -> list:
+    rolls = []
+    for throw in inp.split():
+        try: dice = re.findall(r'^([0-9]*)(?=[Dd])[Dd]?([0-9]+)*(?:([+-]?[0-9]*))$',throw)
+        except Exception as e: logger.warn("invalid dice")
+        for (n,d,m) in dice:
+            if len(n) > 1 or len(d) > 3 or len(m) > 2: continue
+            try: n,d,m = (int(n or '1'),int(d or '1'),int(m or '0'))
+            except Exception as e: continue
+            if m > (0.6 * d): continue
+            if n < 1 or d < 1: continue
+            string = "{}d{}{:+}".format(n,d,m)
+            roll = 0
+            for i in range(n):
+                roll += randrange(1,d) + m
+            data = (string,roll)
+            rolls.append( data )
+    return rolls
+
+def isolate_channel(image,channel=0):
+    """removes all but one channel from an image"""
+    a = numpy.array(image)
+    channels = [x for x in [0,1,2] if x != channel]
+    for i in channels: 
+        try: a[:,:,i] *= 0
+        except: pass
+
+    return Image.fromarray(a)
+
+
+def is_image_embed(embed):
+    return embed.get('type','') == 'image'
+
+def not_me(msg):
+    return msg.author != client.user
+
+async def get_last_image(channel):
+    """returns last image posted in channel"""
+    async for msg in client.logs_from(channel,limit=50,reverse=False):
+        try:
+            images = list(filter(is_image_embed,msg.embeds))
+            if (len(msg.attachments) > 0 or len(images) > 0):
+                url = images[0].get('url','') if len(images) > 0 else msg.attachments[0]['proxy_url']
+                if (int(requests.head(url,headers={'Accept-Encoding': 'identity'}).headers['content-length']) / 1024 / 1024) >= 8:
+                    await client.send_message(message.channel,'Image is too large.')
+                    return
+                attachment = get(url)
+                content_type = attachment.headers.get_content_type()
+                if 'image' in content_type:
+                    img_file = io.BytesIO(attachment.read())
+                    img = Image.open(img_file)
+                    return img
+        except: return None
+
 def server_icon(server):
     """return better url for server than discord.Server.icon_url"""
     return "https://cdn.discordapp.com/icons/{server.id}/{server.icon}.webp".format(server=server) if server.icon_url else None 
