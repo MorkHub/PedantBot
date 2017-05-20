@@ -1311,9 +1311,9 @@ async def make_collage(message,*args):
 
 @register('emoji','<text>')
 async def cancer(message,*args):
-    """convers your message to emoji"""
+    """converts your message to emoji"""
     msg = emoji_string(' '.join(args))
-    await client.send_message(message.channel,msg)
+    await client.send_message(message.channel,"{}: {}".format(message.author.mention,msg))
 
 @register('image','<text>',rate=5)
 async def image_gen(message,*args):
