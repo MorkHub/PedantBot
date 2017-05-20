@@ -738,6 +738,12 @@ async def define(message, *args):
 
     if term in special_defs:
         logger.info(' -> Special def')
+        defn = special_defs[term.lower()]
+        if defn.startswith('!'):
+            defn = defn[1::]
+            for exception in exceptions:
+                if exception.__name__ == defn:
+                    raise exception('this is an error')
         content = special_defs[term.lower()]
         if content.startswith('wiki:'):
             term = content[5:]
