@@ -1210,43 +1210,69 @@ async def dad_joke(message,*args):
 def get(url):
     return urllib.request.urlopen(urllib.request.Request(url,data=None,headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36'}))
 
-@register('needsmorejpeg','[JPEG quality 1-100]',rate=10)
+@register('jpeg','[JPEG quality 1-100]',rate=3,alias='needsmorejpeg')
+@register('needsmorejpeg','[JPEG quality 1-100]',rate=3)
 async def jpeg(message,*args):
     """adds more jpeg to the last image the app can find"""
-    messages = client.messages; messages.reverse()
-    def image_embed(embed):
-        return embed.get('type','') == 'image'
-    def filtered_messages(msg):
-        return msg.author != client.user
-    quality = 1
+    quality = 0
     if len(args) > 0:
         if args[0].isnumeric():
             quality = int(args[0])
-    if not 1 < quality < 100:
-        quality = 1
-    if True:
-        #for msg in filter(filtered_messages,messages):
-        async for msg in client.logs_from(message.channel,limit=50,reverse=False):
-            try:
-                images = list(filter(image_embed,msg.embeds))
-                if filtered_messages(msg) and (len(msg.attachments) > 0 or len(images) > 0):
-                    url = images[0].get('url','') if len(images) > 0 else msg.attachments[0]['proxy_url']
-                    if (int(requests.head(url,headers={'Accept-Encoding': 'identity'}).headers['content-length']) / 1024 / 1024) >= 8:
-                        await client.send_message(message.channel,'Image is too large.')
-                        return
-                    attachment = get(url)
-                    content_type = attachment.headers.get_content_type()
-                    if 'image' in content_type:
-                        img_file = io.BytesIO(attachment.read())
-                        img = Image.open(img_file)
-                        outfile = os.path.join('tmp_{}.jpeg'.format(msg.id))
-                        img.save(outfile,"JPEG",quality=quality)
-                        await client.send_file(message.channel,'tmp_{}.jpeg'.format(msg.id))
-                        return
-            except:
-                pass
-    else:
-        await client.send_m(message.channel,'No essages found (I can only read messages sent while I am connected.)')
+    if not 0 < quality < 100:
+        quality = 0
+
+    img = await get_last_image(message.channel)
+    if img:
+        outfile = os.path.join('needsmore.jpeg')
+        img.save(outfile,"JPEG",quality=quality)
+        await client.send_file(message.channel,'needsmore.jpeg')
+        return
+    else: await client.send_message(message.channel,'No images found in current channel.')
+
+import numpy
+@register('red',rate=3)
+async def needsmorered(message,*args):
+    """makes it more red"""
+    img = await get_last_image(message.channel)
+    img = isolate_channel(img,0)
+    img.save("morered.png","PNG")
+
+    await client.send_file(message.channel,"morered.png")
+
+@register('green',rate=3)
+async def needsmoregreen(message,*args):
+    """makes it more green"""
+    img = await get_last_image(message.channel)
+    img = isolate_channel(img,1)
+    img.save("green.png","PNG")
+
+    await client.send_file(message.channel,"green.png")
+
+@register('blue',rate=3)
+async def needsmoreblue(message,*args):
+    """makes it more blue"""
+    img = await get_last_image(message.channel)
+    img = isolate_channel(img,2)
+    img.save("blue.png","PNG")
+
+    await client.send_file(message.channel,"blue.png")
+
+@register('collage')
+async def make_collage(message,*args):
+    """make one of those cancer collages"""
+    img = await get_last_image(message.channel)
+    x,y = img.size
+    if not img: return
+
+    bg = Image.new('RGBA', (x*2,y*2), (0, 0, 0, 255))
+    bg.paste(img,(0,0))
+    bg.paste(isolate_channel(img,0),(x,0))
+    bg.paste(isolate_channel(img,1),(0,y))
+    bg.paste(isolate_channel(img,2),(x,y))
+
+    bg.save("collage.png","PNG")
+    await client.send_file(message.channel,"collage.png")
+
 
 @register('image','<text>',rate=5)
 async def image_gen(message,*args):
