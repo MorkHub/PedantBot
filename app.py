@@ -699,22 +699,29 @@ async def oauth_link(message,*args):
 @register('invites')
 async def get_invite(message,*args):
     """List active invite link for the current server"""
-    active_invites = await client.invites_from(message.server)
+    if len(args) > 0:
+        try: server = client.get_server(args[0])
+        except: server = message.server
+    try: active_invites = await client.invites_from(server)
+    except:
+        await client.send_message(message.channel,'Lacking permission in `{server.name}`'.format(server=server))
+        return
 
-    revoked_invites   = ['~~{0.url}: `{0.channel}` created by `{0.inviter}`~~ '.format(x) for x in active_invites if x.revoked]
-    unlimited_invites = [  '{0.url}: `{0.channel}` created by `{0.inviter}`'.format(x) for x in active_invites if x.max_age == 0 and x not in revoked_invites]
-    limited_invites   = [  '{0.url}: `{0.channel}` created by `{0.inviter}`'.format(x) for x in active_invites if x.max_age != 0 and x not in revoked_invites]
+    revoked_invites   = ['~~{0.code}: `{0.channel}` created by `{0.inviter}`~~ '.format(x) for x in active_invites if x.revoked]
+    unlimited_invites = [  '[`{0.code}`]({0.url}): `{0.channel}` created by `{0.inviter}`'.format(x) for x in active_invites if x.max_age == 0 and x not in revoked_invites]
+    limited_invites   = [  '[`{0.code}`]({0.url}): `{0.channel}` created by `{0.inviter}`'.format(x) for x in active_invites if x.max_age != 0 and x not in revoked_invites]
 
-    embed = discord.Embed(title='__Invite links for {0.name}__'.format(message.server),
+    embed = discord.Embed(title='__Invite links for {0.name}__'.format(server),
         color=message.author.color)
     if unlimited_invites:
-        embed.add_field(name='Unlimited Invites',value='\n'.join(unlimited_invites))
+        embed.add_field(name='Unlimited Invites ({})'.format(len(unlimited_invites)),value='\n'.join(unlimited_invites[:5]))
     if limited_invites:
-        embed.add_field(name='Temporary/Finite Invites', value='\n'.join(limited_invites))
+        embed.add_field(name='Temporary/Finite Invites ({})'.format(len(limited_invites)), value='\n'.join(limited_invites))
     if revoked_invites:
-        embed.add_field(name='Revoked Invites', value='\n'.join(revoked_invites))
+        embed.add_field(name='Revoked Invites ({})'.format(len(revoked_invites)), value='\n'.join(revoked_invites))
 
-    msg = await client.send_message(message.channel,embed=embed)
+    try: msg = await client.send_message(message.channel,embed=embed)
+    except: return
     asyncio.ensure_future(message_timeout(msg, 120))
 
 @register('watta','<term>',rate=5,alias='define')
