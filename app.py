@@ -1309,6 +1309,11 @@ async def make_collage(message,*args):
     bg.save("collage.png","PNG")
     await client.send_file(message.channel,"collage.png")
 
+@register('emoji','<text>')
+async def cancer(message,*args):
+    """convers your message to emoji"""
+    msg = emoji_string(' '.join(args))
+    await client.send_message(message.channel,msg)
 
 @register('image','<text>',rate=5)
 async def image_gen(message,*args):
@@ -2058,6 +2063,16 @@ async def skinn_link(message,*args):
     await client.send_message(message.channel, 'https://twitter.com/4eyes_/status/805851294292381696')
 
 """Utility functions"""
+emoji = { '0':':zero:', '1':':one:', '2':':two:', '3':':three:', '4':':four:', '5':':five:', '6':':six:', '7':':seven:', '8':':eight:', '9':':nine:', '!':':exclamation:', '?':':question:', 'a': ':regional_indicator_a:', 'b': ':regional_indicator_b:', 'c': ':regional_indicator_c:', 'd': ':regional_indicator_d:', 'e': ':regional_indicator_e:', 'f': ':regional_indicator_f:', 'g': ':regional_indicator_g:', 'h': ':regional_indicator_h:', 'i': ':regional_indicator_i:', 'j': ':regional_indicator_j:', 'k': ':regional_indicator_k:', 'l': ':regional_indicator_l:', 'm': ':regional_indicator_m:', 'n': ':regional_indicator_n:', 'o': ':regional_indicator_o:', 'p': ':regional_indicator_p:', 'q': ':regional_indicator_q:', 'r': ':regional_indicator_r:', 's': ':regional_indicator_s:', 't': ':regional_indicator_t:', 'u': ':regional_indicator_u:', 'v': ':regional_indicator_v:', 'w': ':regional_indicator_w:', 'x': ':regional_indicator_x:', 'y': ':regional_indicator_y:', 'z': ':regional_indicator_z:', } 
+
+def emoji_string(string: str = "") -> str:
+    msg = ""
+    for character in string:
+        this = emoji.get(character.lower(), character+" ")
+        if len(msg) + len(this) <= 1900:
+            msg += this
+    return msg
+
 def roll_dice(inp:str="") -> list:
     rolls = []
     for throw in inp.split():
