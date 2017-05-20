@@ -1651,6 +1651,46 @@ async def quote(message,*args):
     cursor.close()
     cnx.close()
 
+@register('qsearch','<search term(s)>')
+async def search_quotes(message,*args):
+    """search quotes by content"""
+    global quote_users
+    if len(args) < 1: return False
+    term = ' '.join(args)
+
+    cnx = MySQLdb.connect(user='readonly', db='my_themork')
+    cursor = cnx.cursor()
+    query = "SELECT `id`,`quote`,`author`,`date` FROM `q2` WHERE `quote` LIKE %s"
+    cursor.execute(query, ("%{}%".format(term),))
+
+    embed = discord.Embed(title="Quotes matching '{}'".format(term),color=message.author.color)
+    msg = ""
+    for (id,quote,author,date) in cursor:
+        if cursor.rowcount == 1:
+            if author.lower() in quote_users:
+                try:
+                    user = message.server.get_member(quote_users[author.lower()])
+                    name = user.name
+                except: user = await client.get_user_info(quote_users[author.lower()])
+
+            embed = discord.Embed(title='TheMork Quotes',
+                                description=quote,
+                                type='rich',
+                                url='https://themork.co.uk/quotes/?q='+ str(id),
+                                timestamp=datetime(*date.timetuple()[:-4]),
+                                color=message.author.color
+            )
+            try: embed.set_author(name=user.display_name,icon_url=user.avatar_url or user.default_avatar_url)
+            except: embed.set_author(name=author)
+            embed.set_footer(text='Quote ID: #' + str(id),icon_url='https://themork.co.uk/assets/main.png')
+        else: msg += "[`#{0}`](https://themork.co.uk/quotes/{0}/) - \"{1:.75}\" - _{2:.32}_\n".format(id,quote,author)
+
+    if cursor.rowcount > 1: embed.description = msg
+    await client.send_message(message.channel,embed=embed)
+
+    cursor.close()
+    cnx.close()
+
 @register('cal')
 async def calendar(message,*args):
     """Displays a formatted calendar"""
