@@ -511,14 +511,37 @@ async def remindme(message,*args):
     if remind_delta > 15:
         save_reminders()
 
-@register('reminders',rate=1)
+@register('reminders','<username or all>',rate=1)
 async def list_reminders(message,*args):
     logger.info('Listing reminders')
 
     msg = 'Current reminders:\n'
     reminders_yes = ''
 
-    for rem in reminders:
+
+    def user_reminders(user,reminder):
+        return reminder['user_mention'].replace('!','') == user.mention.replace('!','')
+
+    all_users = False
+    if not args:
+        user = message.author
+        filtered_reminders = filter(lambda r: user_reminders(user,r), reminders)
+    elif args[0] == 'all':
+        filtered_reminders = reminders
+        all_users = True
+    else:
+        user = None
+        if message.mentions: user = message.mentions[0]
+        if not user: user = message.server.get_member_named(args[0])
+
+        if not user:
+            await client.send_message(message.channel,'User `{}` not found.'.format(args[0]))
+            return
+
+        filtered_reminders = filter(lambda r: user_reminders(user,r), reminders)
+
+    for rem in filtered_reminders:
+        logger.info(rem)
         try:
             if not message.server.get_channel(rem['channel_id']): continue
         except: continue
