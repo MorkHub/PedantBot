@@ -21,7 +21,7 @@ import traceback
 import urllib
 import subprocess
 import calendar as cal
-from random import randrange
+from random import randint,randrange
 import glob
 import io
 from PIL import Image,ImageDraw,ImageFont
@@ -1711,7 +1711,9 @@ async def dice_roll(message,*args):
     """roll a die or dice"""
     if not args: args = ('1d20',)
     rolls = roll_dice(' '.join(args))
-    if not rolls: return False
+    if not rolls:
+        await client.send_message(message.channel,"{}, you requested an invalid/stupid quantity of dice.".format(message.author.mention))
+        return
 
     msg = ''
     for roll in rolls:
@@ -2079,7 +2081,7 @@ def roll_dice(inp:str="") -> list:
         try: dice = re.findall(r'^([0-9]*)(?=[Dd])[Dd]?([0-9]+)*(?:([+-]?[0-9]*))$',throw)
         except Exception as e: logger.warn("invalid dice")
         for (n,d,m) in dice:
-            if len(n) > 1 or len(d) > 3 or len(m) > 2: continue
+            if len(n) > 2 or len(d) > 3 or len(m) > 2: continue
             try: n,d,m = (int(n or '1'),int(d or '1'),int(m or '0'))
             except Exception as e: continue
             if m > (0.6 * d): continue
@@ -2087,7 +2089,7 @@ def roll_dice(inp:str="") -> list:
             string = "{}d{}{:+}".format(n,d,m)
             roll = 0
             for i in range(n):
-                roll += randrange(1,d) + m
+                roll += randint(1,d) + m
             data = (string,roll)
             rolls.append( data )
     return rolls
