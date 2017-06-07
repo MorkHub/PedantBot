@@ -29,6 +29,7 @@ import textwrap
 import struct
 import gtts
 import requests
+import customlogging
 
 """Dependencies"""
 import discord
@@ -76,31 +77,14 @@ def register(command_name, *args, **kwargs):
 
 """Setup logging"""
 try:
-    logging.basicConfig(format=CONF.get('log_format','[%(asctime)s] [%(levelname)s] %(message)s'),stream=sys.stdout)
-    logger = logging.getLogger('pedantbot')
-    logger.setLevel(logging.INFO)
-
-    log_handler = logging.handlers.RotatingFileHandler(CONF.get('dir_pref','/home/shwam3/')+CONF.get('logfile','{}.log'.format(__file__)), 'a', backupCount=5, delay=True)
-    log_handler.setLevel(logging.DEBUG)
-
-    err_log_handler = logging.StreamHandler(stream=sys.stderr)
-    err_log_handler.setLevel(logging.WARNING)
-
-    formatter = logging.Formatter(CONF.get('log_format','[%(asctime)s] [%(levelname)s] %(message)s'))
-    log_handler.setFormatter(formatter)
-    err_log_handler.setFormatter(formatter)
-
-    if os.path.isfile(CONF.get('dir_pref','/home/shwam3/')+CONF.get('logfile','{}.log'.format(__file__))):
-        log_handler.doRollover()
-
-    logger.addHandler(log_handler)
-    logger.addHandler(err_log_handler)
-
-    logger.warn('Starting...')
+    logger   = logging.getLogger('pedantbot')
+    permlog  = logging.getLogger('sudo')
+    auditlog = logging.getLogger('audit-log')
 except Exception as e:
     print(e)
 
 """Respond to events"""
+
 @client.event
 async def on_ready():
     logger.info('Version ' + CONF.get('VERSION','0.0.0'))
@@ -140,6 +124,12 @@ async def on_message(message):
 
                 if command_name in commands:
                     cmd = commands[command_name]
+                    logger.info('{}#{}@{} >> {}'.format(
+                        message.author.name,
+                        message.author.discriminator,
+                        message.server.name,
+                        message.clean_content
+                    ))
                 else:
                     asyncio.ensure_future(do_record(message))
                     return False
@@ -172,8 +162,20 @@ async def on_message(message):
 
             except Exception as e:
                 logger.exception(e)
-                msg = await client.send_message(message.channel,MESG.get('error','Error in `{1}`: {0}').format(str(e.__class__.__name__)+': '+str(e),command_name))
-                #asyncio.ensure_future(message_timeout(msg, 40))
+                error_string = ('{cls}:' + ' HTTP/1.1 {status} {reason}' if isinstance(e,discord.HTTPException) else '{error}')
+                msg = await client.send_message(
+                    message.channel,
+                    MESG.get('error','Error in `{1}`: {0}').format(
+                        error_string.format(
+                            cls=e.__class__.__name__,
+                            status=e.response.status if hasattr(e,'response') else e,
+                            reason=e.response.reason or "Unspecified error occurred" if hasattr(e,'response') else "",
+                            error=e
+                        ),
+                        command_name
+                    )
+                )
+                asyncio.ensure_future(message_timeout(msg, 80))
         else:
             asyncio.ensure_future(do_record(message))
             pass
@@ -205,7 +207,7 @@ async def toggle_deafen(user):
 
     try:
         await client.server_voice_state(user,mute=not user.voice.mute,deafen=not user.voice.deaf)
-        logger.info(' -> Toggled {} to {},{}'.format(user,'muted' if user.voice.mute else 'unmuted','deafened' if user.voice.deaf else 'undeafened'))
+        logger.debug(' -> Toggled {} to {},{}'.format(user,'muted' if user.voice.mute else 'unmuted','deafened' if user.voice.deaf else 'undeafened'))
         sleepies[user.id] = asyncio.ensure_future(toggle_deafen(user))
     except:
         t = sleepies.get(user.id,False)
@@ -227,7 +229,7 @@ async def on_voice_state_update(before,after):
 
     if 0 < datetime.now().hour < 7 and not set(after.roles).isdisjoint(roles):
         if after.voice != None and (before.voice == None or before.voice.voice_channel != after.voice.voice_channel) and not after.id in sleepies:
-            logger.info(' -> doing the thing for {}'.format(after))
+            logger.debug(' -> doing the thing for {}'.format(after))
             sleepies[after.id] = asyncio.ensure_future(toggle_deafen(after))
 
 """Commands"""
@@ -364,7 +366,6 @@ async def get_levels(message,*args):
         xp_list.append(xp)
         n += 1
 
-    logger.info(xp_list)
     info += "\n```{}```".format(graph.draw(xp_list,height=4,labels=[x+1 for x in range(len(xp_list))]))
 
     embed = discord.Embed(title="Leaderboards for {}".format(server.name),description=info,color=message.author.color)
@@ -513,7 +514,7 @@ async def remindme(message,*args):
 
 @register('reminders','<username or all>',rate=1)
 async def list_reminders(message,*args):
-    logger.info('Listing reminders')
+    logger.debug('Listing reminders')
 
     msg = 'Current reminders:\n'
     reminders_yes = ''
@@ -541,7 +542,6 @@ async def list_reminders(message,*args):
         filtered_reminders = filter(lambda r: user_reminders(user,r), reminders)
 
     for rem in filtered_reminders:
-        logger.info(rem)
         try:
             if not message.server.get_channel(rem['channel_id']): continue
         except: continue
@@ -683,7 +683,7 @@ async def speedtest(message):
 @register('oauth','[OAuth client ID]')
 async def oauth_link(message,*args):
     """Get OAuth invite link"""
-    logger.info('OAuth')
+    logger.info(' -> {} requested OAuth'.format(message.author))
     if len(args) > 3:
         return False
 
@@ -737,14 +737,14 @@ async def define(message, *args):
     content = None
     found = False
 
-    logger.info('Finding definition: "' + term + '"')
+    logger.debug('Finding definition: "' + term + '"')
 
     if term == 'baer':
         await client.send_message(message.channel,'Definition for `baer`:\n```More bae than aforementioned article```')
         return
 
     if term in special_defs:
-        logger.info(' -> Special def')
+        logger.debug(' -> Special def')
         defn = special_defs[term.lower()]
         if defn.startswith('!'):
             defn = defn[1::]
@@ -762,19 +762,19 @@ async def define(message, *args):
         if not found:
             arts = wikipedia.search(term)
             if len(arts) == 0:
-                logger.info(' -> No results found')
+                logger.debug(' -> No results found')
                 msg = await client.send_message(message.channel, MESG.get('define_none','`{0}` not found.').format(term))
                 asyncio.ensure_future(message_timeout(msg, 40))
                 return
             else:
-                logger.info(' -> Wiki page')
+                logger.debug(' -> Wiki page')
                 try:
                     content = wikipedia.page(arts[0])
                 except wikipedia.DisambiguationError as de:
-                    logger.info(' -> ambiguous wiki page')
+                    logger.debug(' -> ambiguous wiki page')
                     content = wikipedia.page(de.options[0])
 
-        logger.info(' -> Found stuff')
+        logger.debug(' -> Found stuff')
         embed = discord.Embed(title=MESG.get('define_title','{0}').format(search.title()),
                               url=content.url,
                               description=''.join([x for x in content.summary[:1000] + bool(content.summary[1000:]) * '...' if x in ALLOWED_EMBED_CHARS]),
@@ -801,10 +801,10 @@ async def define(message, *args):
 @register('random',rate=5)
 async def random_wiki(message,*args):
     """Retrieve a random WikiPedia article"""
-    logger.info('Finding random article')
+    logger.debug('Finding random article')
     term = wikipedia.random(pages=1)
 
-    logger.info(' -> Found: ' + term)
+    logger.debug(' -> Found: ' + term)
     embed = discord.Embed(title='Random article',
                             type='rich',
                             url='https://en.wikipedia.org/wiki/'+term,
@@ -828,25 +828,25 @@ async def define(message, *args):
     content = None
     found = False
 
-    logger.info('Finding definition: "' + term + '"')
+    logger.debug('Finding definition: "' + term + '"')
 
     try:
         if not found:
             arts = wikia.search('runescape',term)
             if len(arts) == 0:
-                logger.info(' -> No results found')
+                logger.debug(' -> No results found')
                 msg = await client.send_message(message.channel, MESG.get('define_none','`{0}` not found.').format(term))
                 asyncio.ensure_future(message_timeout(msg, 40))
                 return
             else:
-                logger.info(' -> Wikia page')
+                logger.debug(' -> Wikia page')
                 try:
                     content = wikia.page('runescape',arts[0])
                 except wikia.DisambiguationError as de:
-                    logger.info(' -> ambiguous wiki page')
+                    logger.debug(' -> ambiguous wiki page')
                     content = wikia.page('runescape',de.options[0])
 
-        logger.info(' -> Found stuff')
+        logger.debug(' -> Found stuff')
         embed = discord.Embed(title=''.join([x for x in content.title if x in ALLOWED_EMBED_CHARS] or 'No title found.'),
                               url=re.sub(' ','%20',content.url),
                               description='{:.1600}'.format(''.join([x for x in content.summary if x in ALLOWED_EMBED_CHARS]) or 'No description found.'),
@@ -1039,12 +1039,10 @@ async def showemoji(message,*args):
 @register('bigger','<custom server emoji>')
 async def bigger(message,*args):
     """Display a larger image of the specified emoji"""
-    logger.info('Debug emoji:')
 
     if len(args) < 1:
         return False
 
-    logger.info(args)
     try: name,id = re.findall(r'<:([^:]+):([^:>]+)>',args[0])[0]
     except: return False
 
@@ -1513,7 +1511,7 @@ async def lmfgty(message,*args):
 @register('skinn','',rate=1,alias='skin')
 @register('skin','',rate=1)
 async def skinn_link(message,*args):
-    logger.info('skinnn')
+    logger.debug('skinnn')
     await client.send_message(message.channel, 'https://twitter.com/4eyes_/status/805851294292381696')
 
 @register('this')
@@ -1608,7 +1606,7 @@ quote_users = {'kush':'94897568776982528',
 async def quote(message,*args):
     """Embed a quote from https://themork.co.uk/quotes"""
     global quote_users
-    logger.info('Quote')
+    logger.debug('Quote')
 
     try: id = args[0]
     except: id = ''
@@ -2022,7 +2020,7 @@ async def banned_users(message,*args):
 @register('restart',owner=True,typing=False)
 async def fkoff(message,*args):
     """Restart the bot"""
-    logger.info('Stopping')
+    logger.warn('Shutting down...')
     await client.send_message(message.channel, MESG.get('shutdown','Shutting down.'))
 
     await client.logout()
@@ -2037,7 +2035,7 @@ async def fkoff(message,*args):
 @register('maths','<expression>',rate=1)
 async def do_calc(message,*args):
     """Perform mathematical calculation: numbers and symbols (+-*/) allowed only"""
-    logger.info('Calc')
+    logger.debug('Calc')
 
     if len(args) < 1:
         return False
@@ -2048,7 +2046,7 @@ async def do_calc(message,*args):
         await client.send_message(message.channel, MESG.get('calc_illegal','Illegal chars in {0}').format(maths))
 
     else:
-        logger.info(' -> ' + str(maths))
+        logger.debug(' -> ' + str(maths))
         try:
             ans = calculate(maths)
             await client.send_message(message.channel,'`{} = {}`'.format(maths,"Life, the Universe and Everything" if ans == 42 else ans))
