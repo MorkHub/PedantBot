@@ -189,17 +189,67 @@ async def on_message(message):
 async def on_server_join(server):
     """notify owner when added to server"""
     logger.info("Joined {server.owner}'s {server} [{server.id}]".format(server=server))
-    embed = discord.Embed(title=server.name,description="Server: **`{server}`** has `{members}` members, `{roles}` roles and is owned by `{server.owner}`".format(server=server,members=len(server.members),roles=len(server.roles)))
-    embed.add_field(name="Channels ({}/{} shown)".format(min(10,len(server.channels)),len(server.channels)),value="\n".join([('• [`{channel.id}`] **{channel.name}**'+(' "{topic}"' if x.topic and x.topic.strip() != '' else '')).format(channel=x,topic=(x.topic or '').replace('\n','')) for x in sorted(server.channels,key=lambda c: c.position) if x.type == discord.ChannelType.text]),inline=False)
-    embed.add_field(name="Roles ({}/{} shown)".format(min(10,len(server.roles)-1),len(server.roles)),value='\n'.join(["[`{role.id}`] **`{s}{name}`** Host: {role.hoist}, Permissions: `{role.permissions.value}`".format(role=role,s='@' if role.mentionable else '',name=role.name) for role in sorted(server.roles[:10],key=lambda r: r.position) if not role.is_everyone]),inline=False)
-    if len(server.emojis) > 0: embed.add_field(name="Emoji",value=' '.join([":{emoji.name}:".format(emoji=emoji) for emoji in server.emojis]),inline=False)
-    embed.set_footer(text="{server.name} | ID: #`{server.id}`".format(server=server),icon_url=server_icon(server))
-    if server.splash_url: embed.set_image(server.splash_url)
+
+    embed = discord.Embed(
+        title=server.name,
+        description="Server: **`{server}`** has `{members}` members, `{roles}` roles and is owned by `{server.owner}`".format(
+            server=server,
+            members=len(server.members),
+            roles=len(server.roles)
+        )
+    )
+
+    embed.add_field(
+        name="Channels ({}/{} shown)".format(
+            min(10,len(server.channels)),
+            len(server.channels)
+        ),
+        value="\n".join([
+            ('• [`{channel.id}`] **{channel.name}**'+(' "{topic}"' if x.topic and x.topic.strip() != '' else '')).format(
+                channel=x,
+                topic=(x.topic or '').replace('\n','')
+            ) for x in sorted(server.channels,key=lambda c: c.position) if x.type == discord.ChannelType.text]
+        ) or "No Channels.",
+        inline=False
+    )
+
+    if len([x for x in server.roles if not x.is_everyone]) > 0:
+        embed.add_field(
+            name="Roles ({}/{} shown)".format(
+                min(10,len(server.roles)-1),
+                len(server.roles)
+            ),
+            value='\n'.join([
+                "[`{role.id}`] **`{s}{name}`** Hoist: {role.hoist}, Permissions: `{role.permissions.value}`".format(
+                    role=role,
+                    s='@' if role.mentionable else '',
+                    name=role.name
+                ) for role in sorted(server.roles[:10],key=lambda r: r.position) if not role.is_everyone]
+            ) or "No roles.",
+            inline=False
+        )
+
+    if len(server.emojis) > 0:
+        embed.add_field(
+            name="Emoji",
+            value=' '.join([":{emoji.name}:".format(emoji=emoji) for emoji in server.emojis]) or "No Emoji.",
+            inline=False
+        )
+
+    embed.set_footer(
+        text="{server.name} | ID: #{server.id}".format(server=server),
+        icon_url=server_icon(server)
+    )
+
     for user_id in CONF.get('owners',['154542529591771136']):
         try:
+            user = None
             user = await client.get_user_info(user_id)
             await client.send_message(user,'Added to {server}'.format(server=server),embed=embed)
-        except Exception as e: logger.exception(e)
+        except Exception as e:
+            logger.exception(e)
+            if user:
+                await client.send_message(user,'Added to {server.owner}\'s `{server}`'.format(server=server))
 
 async def toggle_deafen(user):
     """toggles mute/deafen every few seconds"""
