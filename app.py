@@ -2,6 +2,7 @@
 
 from datetime import date
 from datetime import datetime,timedelta
+from dateutil.parser import parse
 from threading import Timer
 import asyncio
 import atexit
@@ -491,59 +492,78 @@ async def setnick(message,*args):
     except:
         await client.send_message(message.channel,'Failed to change nickname!')
 
-@register('remindme','in <number of> [seconds|minutes|hours|days]')
+@register('r','in <<number of> [seconds|minutes|hours|days]|<on|at> <time>> "[message]"',alias='remindme')
+@register('remindme','in <<number of> [seconds|minutes|hours|days]|<on|at> <time>> "[message]"')
 async def remindme(message,*args):
     if len(args) < 3:
         return False
 
     word_units = {'couple':(2,2),'few':(2,4),'some':(3,5), 'many':(5,15), 'lotsa':(10,30)}
 
-    if args[0] != 'in' or (not args[1] in word_units and int(args[1]) <= 0):
+    if args[0] in ['in','on','at']:
+        pass
+    elif (not args[1] in word_units) or (not args[1].isnumeric()) or (int(args[1]) <= 0):
         return False
 
     invoke_time = int(time.time())
 
-    logger.info('Set reminder')
+    logger.debug('Set reminder')
     await client.send_typing(message.channel)
 
-    reminder_msg = ' '.join(args[2::])
-    is_cancelled = False
-    split = reminder_msg.split(' ',1)
-    unit = split[0]
-    unit_specified = True
-    reminder_if_unit = split[1] if len(split) > 1 else None
+    if args[0] == 'in':
+        reminder_msg = ' '.join(args[2::])
+        is_cancelled = False
+        split = reminder_msg.split(' ',1)
+        unit = split[0]
+        unit_specified = True
+        reminder_if_unit = split[1] if len(split) > 1 else None
 
-    _s = ['seconds','second','sec','secs']
-    _m = ['minutes','minute','min','mins']
-    _h = ['hours'  ,'hour'  ,'hr' ,'hrs' ]
-    _d = ['days'   ,'day'   ,'d'         ]
+        _s = ['seconds','second','sec','secs']
+        _m = ['minutes','minute','min','mins']
+        _h = ['hours'  ,'hour'  ,'hr' ,'hrs' ]
+        _d = ['days'   ,'day'   ,'d'         ]
 
-    if unit in _s:
-        unit_mult = 1
-    elif unit in _m:
-        unit_mult = 60
-    elif unit in _h:
-        unit_mult = 3600
-    elif unit in _d:
-        unit_mult = 3600 * 24
-    else:
-        unit_mult = 60
-        unit_specified = False
+        if unit in _s:
+            unit_mult = 1
+        elif unit in _m:
+            unit_mult = 60
+        elif unit in _h:
+            unit_mult = 3600
+        elif unit in _d:
+            unit_mult = 3600 * 24
+        else:
+            unit_mult = 60
+            unit_specified = False
 
-    if not reminder_if_unit and not unit_specified:
-        return False
+        if not reminder_if_unit and not unit_specified:
+            return False
 
-    if reminder_if_unit and unit_specified:
-        reminder_msg = reminder_if_unit
+        if reminder_if_unit and unit_specified:
+            reminder_msg = reminder_if_unit
 
-    if not reminder_msg:
-        return False
+        if not reminder_msg:
+            return False
 
-    if args[1] in word_units:
-        args[1] = randrange(*word_units[args[1]])
+        if args[1] in word_units:
+            args[1] = randrange(*word_units[args[1]])
 
-    remind_delta = int(args[1]) * unit_mult
-    remind_timestamp = invoke_time + remind_delta
+        remind_delta = int(args[1]) * unit_mult
+        remind_timestamp = invoke_time + remind_delta
+
+    elif args[0] in ['at','on']:
+        matches = re.findall(r'([^\"\']*) ([\"\'])(\2{0}[^\2]*)\2',' '.join(args))
+        try:
+            for match in matches:
+                date_string,_,reminder_msg = match
+                break
+
+            parsed = parse(date_string)
+        except:
+            return False
+
+        remind_timestamp = parsed.timestamp()
+        remind_delta = int(remind_timestamp - datetime.now().timestamp())
+        is_cancelled = False
 
     if remind_delta <= 0:
         msg = await client.send_message(message.channel, MESG.get('reminder_illegal','Illegal argument'))
@@ -600,20 +620,13 @@ async def list_reminders(message,*args):
         except: date = str(rem['time'])
 
         if not rem.get('is_cancelled',False):
-            n=datetime.now()
-            try: c=(datetime.fromtimestamp(rem['time'])-n)
+            now = datetime.now()
+            try: t = datetime.fromtimestamp(rem['time'])
             except:
-                c=(datetime.now()-n)
-                logger.error("bad date")
-            s=c.days*86400+c.seconds
-            d=(s//(86400*365),s//86400,s//3600,s//60,s)
-            x = -1
-            for i in range(5):
-                if d[i] > 0:
-                    x = i
-                    break
-            u=['year','day','hour','minute','second']
-            m="{} {}{} remaining".format(d[x],u[x],'s' if d[x] > 1 else '')
+                t = datetime.now()
+                logger.debug("bad date: {}".format(rem['time']))
+
+            m = "{} remaining".format(time_diff(now,t))
 
             reminders_yes += ''.join([x for x in (rem['user_mention'] + ' at ' + date + ' ({})'.format(m) + ': ``' + rem['message'] +'`` (id:`'+str(rem['invoke_time'])+'`)\n') if x in ALLOWED_EMBED_CHARS or x == '\n'])
 
