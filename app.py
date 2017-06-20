@@ -256,7 +256,7 @@ async def store_game(server, user):
         )
 
         if updated:
-            logger.info("Updated {}'s game in database.".format(user))
+            logger.debug("Updated {}'s game in database.".format(user))
 
     await asyncio.sleep(30)
     asyncio.ensure_future(store_game(server.id,user.id))
