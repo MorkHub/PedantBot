@@ -1839,11 +1839,12 @@ async def search_quotes(message,*args):
     global quote_users
     if len(args) < 1: return False
     term = ' '.join(args)
+    term2 = "%{}%".format(term)
 
     cnx = MySQLdb.connect(user='readonly', db='my_themork')
     cursor = cnx.cursor()
-    query = "SELECT `id`,`quote`,`author`,`date` FROM `q2` WHERE `quote` LIKE %s"
-    cursor.execute(query, ("%{}%".format(term),))
+    query = "SELECT `id`,`quote`,`author`,`date` FROM `q2` WHERE `quote` LIKE %s or `author` LIKE %s"
+    cursor.execute(query, (term2, term2))
 
     embed = discord.Embed(title="Quotes matching '{}'".format(term),color=message.author.color)
     msg = ""
