@@ -220,7 +220,7 @@ async def store_game(server, user):
         log.warning("no server")
         return
 
-    if True:
+    try:
         if isinstance(user,str):
             user = server.get_member(user)
         if not user:
@@ -258,6 +258,8 @@ async def store_game(server, user):
 
         if updated:
             logger.debug("Updated {}'s game in database.".format(user))
+    except Exception as e:
+        logger.exception(e)
 
     await asyncio.sleep(30)
     asyncio.ensure_future(store_game(server.id,user.id))
