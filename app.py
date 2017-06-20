@@ -42,6 +42,7 @@ import pyspeedtest
 import MySQLdb
 import wikipedia, wikia
 import urbandict
+import aioredis
 
 """Initialisation"""
 from pedant_config import CONF,SQL,MESG
@@ -52,6 +53,7 @@ reminders = []
 exceptions = [IndexError,KeyError,ValueError]
 ALLOWED_EMBED_CHARS = ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~'
 client = discord.Client(shard_id=SHARD_ID,shard_count=SHARD_COUNT)
+client.redis = None
 pedant_db = MySQLdb.connect(user='pedant', password='7XlMqXHCLfGomDHu', db='pedant')
 
 """Command registration framework"""
@@ -109,6 +111,9 @@ async def on_ready():
     except:
         pass
 
+    client.redis = await aioredis.create_redis(('localhost',6379), encoding="utf8")
+    asyncio.ensure_future(store_game('154698639812460544','154542529591771136'))
+    asyncio.ensure_future(update_status(client))
 
 """Respond to messages"""
 @client.event
@@ -185,6 +190,57 @@ async def on_message(message):
         logger.error('error in on_message')
         logger.exception(e)
         await log_exception(e, 'on_message')
+
+async def store_game(server, user):
+    """get user and cache playing status"""
+    if isinstance(server,str):
+        server = client.get_server(server)
+    if not server:
+        log.warning("no server")
+        return
+
+    if True:
+        if isinstance(user,str):
+            user = server.get_member(user)
+        if not user:
+            log.warning("no user")
+            return
+
+        check = await client.redis.get('{}:status:check'.format(user.id))
+        if check:
+            return
+
+        await client.redis.set('{}:status:check'.format(user.id), '1', expire=30)
+        before = await client.redis.get('{}:status'.format(user.id))
+        game = json.loads(before).get('game',{}).get('name','')
+
+        if game == str(user.game):
+            await asyncio.sleep(30)
+            asyncio.ensure_future(store_game(server.id,user.id))
+
+        user_dict = {
+            'username': user.name,
+            'discriminator': user.discriminator,
+            'id': user.id,
+            'avatar': user.avatar,
+            'status': str(user.status),
+            'game': {}
+        }
+
+        if user.game:
+            for (key,value) in user.game:
+                user_dict['game'][key]=value
+
+        updated = await client.redis.set(
+            '{}:status'.format(user.id),
+            json.dumps(user_dict)
+        )
+
+        if updated:
+            logger.info("Updated {}'s game in database.".format(user))
+
+    await asyncio.sleep(30)
+    asyncio.ensure_future(store_game(server.id,user.id))
 
 @client.event
 async def on_server_join(server):
