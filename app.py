@@ -1901,6 +1901,11 @@ async def dice_roll(message,*args):
 
     await client.send_message(message.channel,embed=embed)
 
+@register('shard')
+async def get_shard(message,*args):
+    """find out which shard is connected to the current server"""
+    await client.send_message(message.channel,"**`{server}`** is connected to shard `{shard}/{shards}`".format(server=message.server,shard=SHARD_ID+1,shards=SHARD_COUNT))
+
 @register('id','[DiscordTag#0000] [server ID]',owner=True)
 async def get_user_id(message,*args):
     """get User ID by DiscordTag#0000"""
