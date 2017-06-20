@@ -103,10 +103,7 @@ async def on_ready():
             task = asyncio.ensure_future(do_reminder(client, rem['invoke_time']))
             rem['task'] = task
 
-        asyncio.ensure_future(update_status())
-
         logger.info(' -> set ' + str(len(reminders)) + ' reminders')
-
         save_reminders()
     except:
         pass
@@ -121,9 +118,16 @@ async def on_message(message):
     await client.wait_until_ready()
 
     try:
+        if message.author.bot:
+            return
         if message.author.id == client.user.id:
             return
-        elif message.content.lower().startswith(CONF.get('cmd_pref','/')):
+
+        if message.server:
+            asyncio.ensure_future(do_record(message))
+
+
+        if message.content.lower().startswith(CONF.get('cmd_pref','/')):
             try:
                 inp = message.content.split(' ')
                 command_name, command_args = inp[0][1::].lower(),inp[1::]
@@ -137,7 +141,6 @@ async def on_message(message):
                         message.clean_content
                     ))
                 else:
-                    asyncio.ensure_future(do_record(message))
                     return False
 
                 last_used = cmd.invokes.get(message.author.id,False)
@@ -525,25 +528,13 @@ async def help(message,*args):
             msg = await client.send_message(message.channel,MESG.get('cmd_notfound','`{0}` not found.').format(command_name))
             asyncio.ensure_future(message_timeout(msg, 20))
 
-@register('info',rate=5)
-async def bot_info(message,*args):
-    """Print information about the Application"""
-    me = await client.application_info()
-    owner = me.owner
-    embed = discord.Embed(title=me.name,description=me.description,color=message.author.color,timestamp=discord.utils.snowflake_time(me.id))
-    embed.set_thumbnail(url=me.icon_url)
-    embed.set_author(name=owner.name,icon_url=owner.avatar_url or owner.default_avatar_url)
-    embed.set_footer(text="Client ID: {}".format(me.id))
-
-    await client.send_message(message.channel,embed=embed)
 @register('setnick',rate=10,owner=True)
 async def setnick(message,*args):
     """Set bot nickname"""
-    nickname = ''.join(args)
-    member = message.server.get_member(client.user.id)
+    nickname = ' '.join(args)
     try:
         await client.change_nickname(member,nickname)
-        member = message.server.get_member(client.user.id)
+        member = message.server.me
         await client.send_message(message.channel,'Nickname successfully changed to `{}`'.format(nickname or member.name))
     except:
         await client.send_message(message.channel,'Failed to change nickname!')
@@ -818,9 +809,11 @@ async def oauth_link(message,*args):
 @register('invites')
 async def get_invite(message,*args):
     """List active invite link for the current server"""
+    server = None
     if len(args) > 0:
         try: server = client.get_server(args[0])
         except: server = message.server
+    if not server: server = message.server
     try: active_invites = await client.invites_from(server)
     except:
         await client.send_message(message.channel,'Lacking permission in `{server.name}`'.format(server=server))
@@ -1319,6 +1312,11 @@ async def minkle(message,*args):
     """i am minkle"""
     await client.send_file(message.channel,"minkle.png")
 
+@register('concerned')
+async def concerned(message,*args):
+    """i am concerned"""
+    await client.send_message(message.channel,"https://i.imgur.com/7XeV67N.png")
+
 @register('nudes')
 async def nudes(message,*args):
     """send nudes"""
@@ -1375,7 +1373,7 @@ async def jpeg(message,*args):
         if args[0].isnumeric():
             quality = int(args[0])
     if not 0 < quality < 100:
-        quality = 0
+        quality = 1
 
     img = await get_last_image(message.channel)
     if img:
@@ -1743,6 +1741,7 @@ quote_users = {'kush':'94897568776982528',
              'chris':'192671450388234240',
              'becca':'156902386785452034',
              'dmeta':'221976004745232385',
+             'angus':'191596296971354113',
              }
 
 @register('scrote','[quote id]',rate=2,alias='quote')
@@ -1990,7 +1989,7 @@ async def age(message,*args):
     string = ''
     users = sorted(users,key=age)
     for n,user in enumerate(sorted(users,key=age)):
-        user.name = re.sub(r'([*_])',r'\\\1',user.name)
+        user.name = re.sub(r'([`*_])',r'\\\1',user.name)
         string += '{n:>2}.  **{user}**:`{user.id}` joined on `{date}`\n'.format(n=n+1,user=user,date=age(user).strftime('%d %B %Y @ %I:%M%p'))
 
     embed = discord.Embed(title="Age of users in {server.name}".format(server=message.server),
@@ -2007,7 +2006,7 @@ async def purge(message,*args):
     limit = 500
     if len(args) > 0 and args[0].isnumeric():
         limit = int(args[0])
-    if isadmin(message.author) and message.server.id != '154543502313652224':
+    if isadmin(message.author) or isowner(message.author) and message.server.id != '154543502313652224':
         try:
             deleted = await client.purge_from(message.channel,limit=limit)
         except:
@@ -2050,7 +2049,10 @@ async def abuse(message,*args):
 @register('perms',owner=True)
 async def perms(message,*args):
     """List permissions available to this  bot"""
-    member = message.server.get_member(message.mentions[0].id if len(message.mentions) > 0 else client.user.id)
+    try: member = message.server.get_member_named(args[0])
+    except: member = None
+    if not member: member = message.server.get_member(message.mentions[0].id if len(message.mentions) > 0 else client.user.id)
+
     perms = message.channel.permissions_for(member)
     perms_list = [' '.join(w.capitalize() for w in x[0].split('_')).replace('Tts','TTS') for x in perms if x[1]]
 
@@ -2185,7 +2187,6 @@ async def fkoff(message,*args):
     try:
         sys.exit()
     except Exception as e:
-        logger.exception(e)
         pass
 
 @register('calc','<expression>',rate=1,alias='maths')
@@ -2309,7 +2310,8 @@ def isadmin(member):
 
 def has_perm(permissions=discord.Permissions(),required=[]):
     """returns True if the supplied permissions contains the required"""
-    if not isinstance(permissions,discord.permissions): return False
+    if discord.Member: permissions = permissions.server_permissions
+    if not isinstance(permissions,discord.Permissions): return False
     if isinstance(required,str): required = required.split(',')
     if isinstance(required,discord.Permissions): return permissions >= required
     if not required: return True
@@ -2518,9 +2520,10 @@ if not token:
 
 """Run program"""
 if __name__ == '__main__':
-    try:
-        #service = build('translate', 'v2', developerKey=CONF.get('gapi_key',''))
-        client.run(token, bot=True)
-        logging.shutdown()
-    except Exception as e:
-        logging.error(e)
+    while True:
+        time.sleep(1)
+        try:
+            client.run(token, bot=True)
+            logging.shutdown()
+        except Exception as e:
+            pass
