@@ -1201,12 +1201,11 @@ async def bigger(message,*args):
 async def avatar(message,*args):
     """Display a user's avatar"""
     user = None
-    if len(args) > 0: user = message.server.get_member_named(args[0])
-    elif len(message.mentions) > 0: user = message.mentions[0]
+    if len(message.mentions) > 0: user = message.mentions[0]
+    elif len(args) > 0: user = message.server.get_member_named(args[0])
     if not user: return False
     name = user.display_name
-    avatar = user.avatar_url or user.default_avatar_url
-    avatar = re.sub('https:\/\/discordapp.com\/api\/users\/([^\/]+)\/avatars\/([^\/]+)\.jpg','https://images.discordapp.net/avatars/\g<1>/\g<2>.gif',avatar)
+    avatar = re.sub(r'\?.*','',user.avatar_url or user.default_avatar_url)
 
     embed = discord.Embed(title=name,type='rich',colour=message.author.color,url=avatar)
     embed.set_image(url=avatar)
