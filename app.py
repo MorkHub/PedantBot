@@ -2147,14 +2147,49 @@ async def abuse(message,*args):
 @register('perms',owner=True)
 async def perms(message,*args):
     """List permissions available to this  bot"""
-    try: member = message.server.get_member_named(args[0])
+    comp = None
+    name = ''.join(args)
+
+    try: member = message.server.get_member_named(name)
     except: member = None
     if not member: member = message.server.get_member(message.mentions[0].id if len(message.mentions) > 0 else client.user.id)
 
     perms = message.channel.permissions_for(member)
-    perms_list = [' '.join(w.capitalize() for w in x[0].split('_')).replace('Tts','TTS') for x in perms if x[1]]
+    granted = []
+    denied = []
+    for perm in perms:
+        name = ' '.join(word.capitalize() for word in perm[0].split('_')).replace('Tts','TTS')
+        field = granted if perm[1] else denied
+        field.append(name)
 
-    msg = await client.send_message(message.channel, "**Perms for {user.name} in {server.name}:** ({1.value})\n```{0}```".format('\n'.join(perms_list),perms,user=member,server=message.server))
+    embed = discord.Embed(
+        colour=message.author.colour
+    )
+    embed.set_author(
+        name="Perms for {user.name} in {server.name}".format(
+            user=member,
+            server=member.server
+        ),
+        icon_url=member.avatar_url or member.default_avatar_url
+    )
+    if len(granted) > 0:
+        embed.add_field(
+            name="Permissions Granted",
+            value="```{}```".format('\n'.join(granted)),
+            inline=True
+        )
+    if len(denied) > 0:
+        embed.add_field(
+            name="Permissions Denied",
+            value="```{}```".format('\n'.join(denied)),
+            inline=True
+        )
+
+    msg = await client.send_message(
+        message.channel,
+        embed=embed
+    )
+
     asyncio.ensure_future(message_timeout(msg, 120))
 
 @register('hole','@<mention users>',admin=True,typing=False)
