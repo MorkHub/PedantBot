@@ -108,8 +108,25 @@ async def on_ready():
     except:
         pass
 
+    try:
+        client.users = set()
+        for server in client.servers:
+            for user in server.members:
+                client.users.add( (user.id,str(user)) )
+    except Exception as e:
+        logger.exception(e)
+
+    cursor = pedant_db.cursor()
+    for server in client.servers:
+        try: cursor.execute("INSERT IGNORE INTO `connected_servers` (`server_id`) VALUES (%s) ON DUPLICATE KEY UPDATE `server_id`=%s",(server.id,server.id))
+        except: pass
+
+    pedant_db.commit()
+    cursor.close()
+
     client.redis = await aioredis.create_redis(('localhost',6379), encoding="utf8")
     asyncio.ensure_future(store_game('154698639812460544','154542529591771136'))
+    asyncio.ensure_future(store_game('154698639812460544','154543065594462208'))
     asyncio.ensure_future(update_status(client))
 
 """Respond to messages"""
@@ -214,12 +231,11 @@ async def store_game(server, user):
             return
 
         await client.redis.set('{}:status:check'.format(user.id), '1', expire=30)
-        before = await client.redis.get('{}:status'.format(user.id))
+        before = await client.redis.get('{}:status'.format(user.id)) or '{}'
         game = json.loads(before).get('game',{}).get('name','')
 
         if game == str(user.game):
             await asyncio.sleep(30)
-            asyncio.ensure_future(store_game(server.id,user.id))
 
         user_dict = {
             'username': user.name,
@@ -626,8 +642,7 @@ async def remindme(message,*args):
     msg = await client.send_message(message.channel, message.author.mention + ' Reminder scheduled for ' + datetime.fromtimestamp(remind_timestamp).strftime(CONF.get('date_format','%A %d %B %Y @ %I:%M%p')))
     asyncio.ensure_future(message_timeout(msg, 60))
 
-    if remind_delta > 15:
-        save_reminders()
+    save_reminders()
 
 @register('reminders','<username or all>',rate=1)
 async def list_reminders(message,*args):
