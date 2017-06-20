@@ -1002,12 +1002,30 @@ async def urban(message,*args):
     else:
         await client.send_message(message.channel,embed=embed)
 
-@register('imdb',rate=5,alias="ombd")
-@register('omdb',rate=5)
+@register('imdb',rate=10,alias="ombd")
+@register('omdb',rate=10)
 async def imdb_search(message,*args):
     """Search OMDb for a film"""
+
+    embed = discord.Embed(
+        description="Feature Unavailable: [OMDb API unavailable.](https://goo.gl/ww1GXv)",
+        color=message.author.color
+    )
+    embed.set_footer(
+        text="The Open Movie Database",
+        icon_url="http://ia.media-imdb.com/images/G/01/imdb/images/logos/imdb_fb_logo-1730868325._CB522736557_.png"
+    )
+    await client.send_message(message.channel,embed=embed)
+    return
+
     term = ' '.join(args).strip().lower()
     raw = urllib.request.urlopen('http://sg.media-imdb.com/suggests/{0[0]}/{0}.json'.format(term.replace(' ','%20'))).read().decode('utf8')
+
+    msg = await client.send_message(
+        message.channel,
+        "Searching IMDB for `{}`".format(term)
+    )
+
     result = json.loads(re.sub('imdb\${}\((.*)\)'.format(term.replace(' ','_')),'\\1',raw))
 
     if not 'd' in result:
@@ -1015,7 +1033,7 @@ async def imdb_search(message,*args):
         return
 
     movies = list(filter(lambda r: re.match('[a-z]{2}[\d]{7}',r['id']),result['d']))
-    movie = None; msg = None
+    movie = None;
 
     if len(movies) > 1:
         embed = discord.Embed(title="Multiple results for __{}__".format(term),color=message.author.color,timestamp=message.timestamp)
@@ -1024,11 +1042,11 @@ async def imdb_search(message,*args):
             _movie = movies[i]
             embed.add_field(inline=False,name="[{}] __{} - **{}** *[{}]*__".format(i,_movie.get('q','Unkown Type').title(),_movie.get('l','Unknown Title'),_movie.get('y','Unknown Year')),value='**Starring:** {:.200}'.format(_movie.get('s','cast unavailable')))
 
-        msg = await client.send_message(message.channel,embed=embed)
+        msg = await client.edit_message(msg,embed=embed)
         res = await client.wait_for_message(20,author=message.author,channel=message.channel,check=lambda m: m.content.isnumeric() and int(m.content) < len(movies))
         if res:
             try: await client.delete_message(res)
-            except: pass
+            except Exception as e: logger.exception(e)
             movie = movies[int(res.content)]
 
     if not movie:
@@ -1036,32 +1054,46 @@ async def imdb_search(message,*args):
 
     movie = json.loads(urllib.request.urlopen('https://www.omdbapi.com/?i={}&tomatoes=true'.format(movie['id'])).read().decode('utf8'))
     for key in movie:
-        if movie[key] == 'N/A' or movie[key] == '':
+        if movie.get(key,'N/A') == 'N/A':
             movie[key] = None
 
     try:
-        embed = discord.Embed(title="{} ({})".format(movie['Title'] or 'Unknown Title',movie['Year'] or 'Unknown Year'),description=movie['Plot'] or 'Plot Unavailable',url='http://www.imdb.com/title/{}/'.format(movie['imdbID']),color=message.author.color)
-        embed.set_footer(text="The Open Movie Database",icon_url="http://ia.media-imdb.com/images/G/01/imdb/images/logos/imdb_fb_logo-1730868325._CB522736557_.png")
-        if movie['Poster']:
-            embed.set_image(url=movie['Poster'])
-        if 'Genre' in movie:
-            embed.add_field(name="Genres",value=movie['Genre'].replace(', ','\n'))
-        if 'Actors' in movie:
-            embed.add_field(name="Cast",value="{}".format(movie['Actors'].replace(', ','\n')))
+        logger.info(movie)
+        embed = discord.Embed(
+            title="{} ({})".format(
+                movie.get('Title','Unknown Title'),
+                movie.get('Year','Unknown Year')
+            ),
+            description=movie.get('Plot','Plot Unavailable'),
+            url='http://www.imdb.com/title/{}'.format(movie.get('imdbID')),
+            color=message.author.color
+        )
+
+        embed.set_footer(
+            text="The Open Movie Database",
+            icon_url="http://ia.media-imdb.com/images/G/01/imdb/images/logos/imdb_fb_logo-1730868325._CB522736557_.png"
+        )
+
+        if movie.get('Poster'):
+            embed.set_image(url=movie.get('Poster'))
+        if movie.get('Genre'):
+            embed.add_field(name="Genres",value=movie.get('Genre').replace(', ','\n'))
+        if movie.get('Actors'):
+            embed.add_field(name="Cast",value="{}".format(movie.get('Actors').replace(', ','\n')))
         ratings = ''
         for service in [('Metacritic','Metascore','%'),('Rotten Tomatoes','tomatoMeter','%'),('IMDb','imdbRating','/10')]:
-            if service[1] in movie and movie[service[1]]:
-                ratings += '{}: `{}{}`\n'.format(service[0],str(movie[service[1]]),service[2])
+            if movie.get(service):
+                ratings += '{}: `{}{}`\n'.format(service[0],str(movie.get(service[1])),service[2])
         if ratings:
             embed.add_field(name="Reviews",value=ratings)
-    except:
-        pass
+    except Exception as e:
+        logger.exception(e)
 
     if 'embed' in locals() and embed:
         if msg:
             await client.edit_message(msg,embed=embed)
         else:
-            await client.edit_message(msg,embed=embed)
+            await client.send_message(message.channel,embed=embed)
 
 
 @register('shrug')
