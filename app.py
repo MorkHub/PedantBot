@@ -2517,9 +2517,9 @@ async def do_reminder(client, invoke_time):
             user.name = "Unknown User"
 
         d = datetime.fromtimestamp(reminder['time'])
-        embed = discord.Embed(title="Reminder for {}".format(d.strftime('%I:%M%p GMT+00')),description=reminder['message'],timestamp=d,color=user.color)
+        embed = discord.Embed(description=reminder['message'],timestamp=d,color=user.color)
         embed.set_footer(text="PedantBot Reminders",icon_url=client.user.avatar_url or client.user.default_avatar_url)
-        embed.set_author(name=user.display_name,icon_url=user.avatar_url or user.default_avatar_url)
+        embed.set_author(name="{}'s reminder for {}".format(user.display_name,d.strftime('%I:%M%p %Z(GMT%z)')),icon_url=user.avatar_url or user.default_avatar_url)
         await client.send_message(client.get_channel(reminder['channel_id']),reminder['user_mention'],embed=embed)
     except asyncio.CancelledError as e:
         cancel_ex = e
