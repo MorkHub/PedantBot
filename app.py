@@ -2024,15 +2024,36 @@ async def bot_ratio(message,*args):
         embed=embed
     )
 
+@register('roles',owner=True,alias='ranks')
 @register('ranks',owner=True)
 async def server_ranks(message,*args):
     """Displays a list of ranks in the server"""
-    embed = discord.Embed(title='Ranks for {server.name}.'.format(server=message.server), colour=message.author.color)
+    embed = discord.Embed(colour=message.author.color)
+    embed.set_author(name='Ranks for {server.name}.'.format(server=message.server), icon_url=message.server.icon_url)
     for role in sorted(message.server.roles,key=lambda r: -r.position):
         if not role.is_everyone:
             members = ['•   **{user.name}** (`{user.id}`)'.format(user=x) for x in message.server.members if role in x.roles]
             if len(members) > 0:
-                embed.add_field(name='__{role.name}__ ({role.colour} `{role.id}`)'.format(role=role), value='\n'.join(members), inline=False)
+                embed.add_field(name='__{role.name}__ ({role.colour} | `{role.id}`)'.format(role=role), value='\n'.join(members), inline=False)
+    msg = await client.send_message(message.channel, embed=embed)
+    asyncio.ensure_future(message_timeout(msg, 180))
+
+@register('members')
+async def list_members(message,*args):
+    """list the memebers in a server"""
+    msg = ""
+    if len(args) == 0: server = message.server
+    else:
+        server = client.get_server(args[0])
+        if not server:
+            await client.send_message(message.channel,"Could not found a server with that ID")
+            return
+
+    for member in sorted(server.members,key=lambda m: -m.top_role.position):
+        msg += "• {role}**{member}**\n".format(member=re.sub(r'([`~*_])',r'\\\1',str(member)),role="[`{}`] ".format(re.sub(r'([`~*_])',r'\\\1',str(member.top_role))) if not member.top_role.is_everyone else "")
+
+    embed = discord.Embed(colour=message.author.color, description=msg)
+    embed.set_author(name="Members in {}".format(server),icon_url=server.icon_url)
     msg = await client.send_message(message.channel, embed=embed)
     asyncio.ensure_future(message_timeout(msg, 180))
 
@@ -2152,6 +2173,26 @@ async def hole(message,*args):
             await client.send_message(message.channel,"User is not in a voice channel.")
             return
         await client.move_member(user,channel)
+
+@register('moverole','<role name> <position>',owner=True)
+async def move_role(message,*args):
+    """moves a role in the server to a given position"""
+    if len(args) < 2: return False
+    if args[1].isnumeric(): position = int(args[1])
+    else: return False
+
+    try: role = discord.utils.find(lambda r: r.name == args[0],message.server.roles)
+    except Exception as e:
+        await client.send_message(message.channel,"Role `{}` not found.".format(args[0]))
+        logger.exception(e)
+        return
+
+    try:
+        await client.move_role(message.server,role,position)
+        await client.send_message(message.channel,"Moved `{}` to position `{}`".format(role.name,position))
+    except Exception as e:
+        await client.send_message(message.channel,"Could not move role")
+        logger.exception(e)
 
 @register('kick','@<mention users>',owner=True)
 async def kick(message,*args):
