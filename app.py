@@ -2614,13 +2614,38 @@ if os.path.isfile(CONF.get('dir_pref','/home/shwam3/')+'special_defs.txt'):
             special_defs[line[0].lower()] = line[1].replace('\n','')
 
 """Update bot status: "Playing Wikipedia: Albert Einstein"""
-async def update_status():
+async def update_status(cln):
+    statuses = [
+        lambda : ("Wikipedia: " + wikipedia.random(pages=1)),
+        "with nazism in {servers} servers",
+        "for {users:,} users in {servers:,} servers",
+        "on Shard {shardid}/{shards}",
+    ]
+    default = "Shard {shardid:,}/{shards:,} | {users:,} users in {servers:,} servers"
     try:
-        await client.change_presence(game=discord.Game(name='Wikipedia: ' + wikipedia.random(pages=1)),afk=False,status=None)
+        if not statuses: status = default
+        else:
+            status = statuses[randrange(len(statuses))]
+            try:
+                if type(lambda: "") == type(status): status = status()
+            except: pass
+            if not isinstance(status,str): status = default
+
+        format_data = {
+            'servers':len(cln.servers),
+            'users':len(cln.users),
+            'shardid':SHARD_ID+1,
+            'shards':SHARD_COUNT,
+        }
+        try: status_message = status.format(**format_data)
+        except: status_message = default.format(**format_data)
+
+        await cln.change_presence(game=discord.Game(name=status_message),afk=False,status=discord.Status.online)
         await asyncio.sleep(60)
-        asyncio.ensure_future(update_status())
-    except:
-        pass
+        asyncio.ensure_future(update_status(cln))
+    except asyncio.CancelledError: pass
+    except Exception as e:
+        logger.exception(e)
 
 """Locate OAuth token"""
 token = CONF.get('token',None)
