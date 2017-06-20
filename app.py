@@ -2326,16 +2326,41 @@ async def do_calc(message,*args):
 @register('skinn','',rate=1,alias='skin')
 @register('skin','',rate=1)
 async def skinn_link(message,*args):
-    logger.info('skinnn')
+    logger.debug('skinnn')
 
     await client.send_message(message.channel, 'https://twitter.com/4eyes_/status/805851294292381696')
 
 """Utility functions"""
-emoji = { '0':':zero:', '1':':one:', '2':':two:', '3':':three:', '4':':four:', '5':':five:', '6':':six:', '7':':seven:', '8':':eight:', '9':':nine:', '!':':exclamation:', '?':':question:', 'a': ':regional_indicator_a:', 'b': ':regional_indicator_b:', 'c': ':regional_indicator_c:', 'd': ':regional_indicator_d:', 'e': ':regional_indicator_e:', 'f': ':regional_indicator_f:', 'g': ':regional_indicator_g:', 'h': ':regional_indicator_h:', 'i': ':regional_indicator_i:', 'j': ':regional_indicator_j:', 'k': ':regional_indicator_k:', 'l': ':regional_indicator_l:', 'm': ':regional_indicator_m:', 'n': ':regional_indicator_n:', 'o': ':regional_indicator_o:', 'p': ':regional_indicator_p:', 'q': ':regional_indicator_q:', 'r': ':regional_indicator_r:', 's': ':regional_indicator_s:', 't': ':regional_indicator_t:', 'u': ':regional_indicator_u:', 'v': ':regional_indicator_v:', 'w': ':regional_indicator_w:', 'x': ':regional_indicator_x:', 'y': ':regional_indicator_y:', 'z': ':regional_indicator_z:', } 
+def time_diff(t_from,t_to):
+    """returns a human-readable time difference"""
+    timedelta = t_to - t_from
+    seconds = timedelta.days * 86400 + timedelta.seconds
+    deltas = (seconds // (86400*365), seconds // 86400, seconds // 3600, seconds // 60, seconds)
+
+    unit = -1
+    for i in range(5):
+        if deltas[i] > 0:
+            unit = i
+            break
+    units = ['year','day','hour','minute','second']
+    string = "{} {}".format(deltas[unit],units[unit]) + ('s' if deltas[unit] != 1 else '')
+
+    return string
+
+def get_time(when:str="") -> str:
+    now = datetime.now()
+    if not when: when = now.isoformat()
+    then = parse(when)
+    return time_diff(now,then)
+
+emoji = { '0':':zero:', '1':':one:', '2':':two:', '3':':three:', '4':':four:', '5':':five:', '6':':six:', '7':':seven:', '8':':eight:', '9':':nine:', '!':':exclamation:', '?':':question:', 'a': ':regional_indicator_a:', 'b': ':regional_indicator_b:', 'c': ':regional_indicator_c:', 'd': ':regional_indicator_d:', 'e': ':regional_indicator_e:', 'f': ':regional_indicator_f:', 'g': ':regional_indicator_g:', 'h': ':regional_indicator_h:', 'i': ':regional_indicator_i:', 'j': ':regional_indicator_j:', 'k': ':regional_indicator_k:', 'l': ':regional_indicator_l:', 'm': ':regional_indicator_m:', 'n': ':regional_indicator_n:', 'o': ':regional_indicator_o:', 'p': ':regional_indicator_p:', 'q': ':regional_indicator_q:', 'r': ':regional_indicator_r:', 's': ':regional_indicator_s:', 't': ':regional_indicator_t:', 'u': ':regional_indicator_u:', 'v': ':regional_indicator_v:', 'w': ':regional_indicator_w:', 'x': ':regional_indicator_x:', 'y': ':regional_indicator_y:', 'z': ':regional_indicator_z:', 'dog':'🐶', 'cat':'🐱', 'mouse':'🐭', 'rabbit':'🐰', 'bear':'🐻', 'koala':'🐨', 'tiger':'🐯', 'lion':'🦁', 'cow':'🐮', 'pig':'🐷', 'frog':'🐸', 'octopus':'🐙', 'money':'🐵', 'peguin':'🐧', 'chicken':'🐔', 'bird':'🐦', 'wolf':'🐺', 'horse':'🐴', 'bee':'🐝', 'turtle':'🐢', 'snake':'🐍', 'crab':'🦀', 'fish':'🐟', 'dolphin':'🐬', 'whale':'🐳', 'crocodile':'🐊', 'leopard':'🐆', 'elephant':'🐘',}
 
 def emoji_string(string: str = "") -> str:
-    msg = ""
-    for character in string:
+    msg = ""; string2 = ""
+    for word in string.split():
+        string2 += (emoji.get(word,word) if len(word) > 1 else word) + " "
+
+    for character in string2:
         this = emoji.get(character.lower(), character+" ")
         if len(msg) + len(this) <= 1900:
             msg += this
