@@ -1298,8 +1298,7 @@ async def tts(message,*args):
     msg = ' '.join(args)
     gtts.gTTS(msg).save("tts.mp3")
 
-    await join_voice(message)
-    voice = client.voice_client_in(message.server)
+    voice = await join_voice(message)
     if voice:
         player = voice.create_ffmpeg_player('tts.mp3', after=lambda: disconn(client,message.server))
         player.volume = 0.5
@@ -1341,12 +1340,16 @@ async def rain(message,*args):
     shawns = ['http://ci.memecdn.com/8731766.jpg','https://i.ytimg.com/vi/rFhyZG-l5qY/maxresdefault.jpg','http://i.imgur.com/qQhNH8e.jpg']
     await client.send_message(message.channel,shawns[randrange(len(shawns))])
 
+@register('hello')
+async def hello_gif(message,*args):
+    """hello gif"""
+    await client.send_message(message.channel,"https://i.imgur.com/pUlKlro.gif")
+
 shawns = glob.glob("shawn*.mp3")
 @register('x',typing=False)
 async def press_x(message,*args):
     """Press (x) to SHAWN"""
-    await join_voice(message)
-    voice = client.voice_client_in(message.server)
+    voice = await join_voice(message)
     if voice:
         player = voice.create_ffmpeg_player(shawns[randrange(len(shawns))], after=lambda: disconn(client,message.server))
         player.volume = 0.5
@@ -1482,20 +1485,37 @@ async def rotato(message,*args):
     else:
         rotato = 180
 
-    fg = Image.open(get(args[0]))
+    try: fg = Image.open(get(args[0]))
+    except:
+        await client.send_message(message.channel,"I'm sorry {}, I can't let you rotato that image.".format(message.author.mention))
+        return
     fg.rotate(rotato).save("rotato.png","PNG")
 
     await client.send_file(message.channel,"rotato.png",filename="rotato.png")
 
-@register('nicememe',owner=True,rate=5,typing=False)
+@register('nicememe',rate=5,typing=False)
 async def nicememe(message,*args):
     """say nice meme"""
-    await join_voice(message)
-    voice = client.voice_client_in(message.server)
+    user = message.author
+    join = args[0].lower() != "s" if len(args) > 0 else True
+    join_first = join and (isowner(user) or has_perm(user, "administrator"))
+
+    voice = await join_voice(message, join_first)
     if voice:
         player = voice.create_ffmpeg_player('/home/mark/Documents/pedant/nicememe.mp3', after=lambda: disconn(client,message.server))
         player.volume = 0.5
         player.start()
+    else:
+        url = "http://nicememewebsitewebsitewebsitewebsitewebsitewebsitewebsite.website/"
+        embed = discord.Embed(
+            title=url,
+            url=url
+        )
+
+        await client.send_message(
+            message.channel,
+            embed=embed
+        )
 
 @register('s',owner=True,typing=False,alias='summon')
 @register('summon',owner=True,typing=False)
@@ -1602,12 +1622,18 @@ async def play_audio(message,*args):
         await client.send_message(message.channel,'Fuck off that\'s too long')
         return
 
-    await join_voice(message)
-    voice = client.voice_client_in(message.server)
-    if voice:
-        player = voice.create_ffmpeg_player(CONF.get('dir_pref','/home/shwam3/') + 'sounds/{}.mp3'.format(args[0]), after=lambda: disconn(client,message.server))
-        player.volume = 0.75
-        player.start()
+    try:
+        await join_voice(message)
+        voice = client.voice_client_in(message.server)
+        if voice:
+            player = voice.create_ffmpeg_player(CONF.get('dir_pref','/home/shwam3/') + 'sounds/{}.mp3'.format(args[0]), after=lambda: disconn(client,message.server))
+            player.volume = 0.75
+            player.start()
+    except:
+        await client.send_message(
+            message.channel,
+            "Could not play audio file: {}.mp3".format(args[0])
+        )
 
 @register('feshpince','<part #>',rate=5)
 async def feshpince(message,*args):
@@ -1746,15 +1772,27 @@ async def quote(message,*args):
                 name = user.name
             except: user = await client.get_user_info(quote_users[author.lower()])
 
-        if message.content.startswith(CONF.get('cmd_pref','') + 'squote'):
+        if message.content.startswith(CONF.get('cmd_pref','') + 's'):
             gtts.gTTS('{} said "{}"'.format(author,quote)).save("quote.mp3")
 
-            await join_voice(message)
-            voice = client.voice_client_in(message.server)
-            if voice:
-                player = voice.create_ffmpeg_player('quote.mp3', after=lambda: disconn(client,message.server))
-                player.volume = 0.5
-                player.start() 
+            try:
+                await join_voice(message)
+                voice = client.voice_client_in(message.server)
+                if voice:
+                    player = voice.create_ffmpeg_player('quote.mp3', after=lambda: disconn(client,message.server))
+                    player.volume = 0.5
+                    player.start()
+                else:
+                    await client.send_message(
+                        message.channel,
+                        "{} Could not join voice channel. (Are you connected?)".format(message.author.mention)
+                    )
+            except:
+                await client.send_message(
+                    message.channel,
+                    "Could not read quote #{}".format(id)
+                )
+                return
         else:
             embed = discord.Embed(title='TheMork Quotes',
                                 description=quote,
@@ -2365,16 +2403,35 @@ async def do_reminder(client, invoke_time):
     if cancel_ex:
         raise cancel_ex
 
-async def join_voice(message):
+async def join_voice(message, join_first=False):
     """join the nearest voice channel"""
-    if not client.voice_client_in(message.server):
-        for chan in message.server.channels:
-            if chan.type == discord.ChannelType.voice and message.author in chan.voice_members:
-                await client.join_voice_channel(chan)
+    clnt = client.voice_client_in(message.server)
+    if clnt:
+        return clnt
+    else:
+        server = message.server
+        channels = server.channels
+        channel = None
+        first_non_empty = None
+        for chan in server.channels:
+            if channel:
                 break
-        else:
-            await client.join_voice_channel(sorted([x for x in message.server.channels if x.type == discord.ChannelType.voice], key=lambda x: x.position)[0])
-    return
+            for user in chan.voice_members:
+                if user == message.author:
+                    channel = chan
+                    break
+
+                if not first_non_empty:
+                    first_non_empty = chan
+
+        if not channel:
+            if first_non_empty and join_first:
+                channel = first_non_empty
+            else:
+                return False
+
+        connected = await client.join_voice_channel(channel)
+    return connected
 
 def generate_text_image(input_text="",colour='#ffffff'):
     """returns Image with text in it"""
