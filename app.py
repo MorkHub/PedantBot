@@ -1979,6 +1979,51 @@ async def connected_channels(message,*args):
     except:
         pass
 
+@register('botratio')
+async def bot_ratio(message,*args):
+    """list ratio of bots to humans"""
+    server = message.server
+    channel = message.channel
+    user = message.author
+
+    humans = 0; bots = 0
+    for member in server.members:
+        if member.bot: bots += 1
+        else: humans += 1
+
+    if humans > bots:
+        short_string = "{server}'s human:bot ratio"
+        string = "The ratio of humans to bots is: __{humans}:{bots}__\nThat means there is about {ratio:.1f}x as many humans as bots."
+        ratio = humans / bots
+        icon = "hooman"
+    else:
+        short_string = "{server}'s bot:human ratio"
+        string = "The ratio of bots to humans is: __{bots}:{humans}__\nThat means there is about {ratio:.1f}x as many bots as humans."
+        ratio = bots / humans
+        icon = "robit"
+
+    embed = discord.Embed(
+        description=string.format(
+            server=server,
+            humans=humans,
+            bots=bots,
+            ratio=ratio
+        ),
+        colour=user.colour
+    )
+    embed.set_author(
+        name=short_string.format(
+            server=server
+        ),
+        icon_url=server.icon_url
+    )
+    embed.set_thumbnail(url='https://themork.co.uk/assets/{}.png'.format(icon))
+
+    await client.send_message(
+        channel,
+        embed=embed
+    )
+
 @register('ranks',owner=True)
 async def server_ranks(message,*args):
     """Displays a list of ranks in the server"""
