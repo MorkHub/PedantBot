@@ -1226,12 +1226,12 @@ async def serveravatar(message,*args):
 @register('elijah')
 async def elijah(message,*args):
     """elijah wood"""
-    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'elijah.gif')
+    await client.send_file(message.channel,CONF.get('dir_pref','./') + 'elijah.gif')
 
 @register('woop')
 async def whooup(message, *args):
     """fingers or something"""
-    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'woop.gif')
+    await client.send_file(message.channel,CONF.get('dir_pref','./') + 'woop.gif')
 
 @register('ree','[url true|false]',rate=5)
 async def ree(message, *args):
@@ -1240,47 +1240,47 @@ async def ree(message, *args):
         if args[0].lower() == 'true':
             await client.send_message(message.channel, 'http://i.imgur.com/y4d4iAO.gif')
     else:
-        await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'ree.gif')
+        await client.send_file(message.channel,CONF.get('dir_pref','./') + 'ree.gif')
 
 @register('aesthetic')
 async def aesthetic(message,*args):
     """A E S T H E T I C"""
-    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'aesthetic.png')
+    await client.send_file(message.channel,CONF.get('dir_pref','./') + 'aesthetic.png')
 
 @register('nice')
 async def nice(message,*args):
     """:point_right: :point_right: nice"""
-    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'nice.png')
+    await client.send_file(message.channel,CONF.get('dir_pref','./') + 'nice.png')
 
 @register('ncie')
 async def ncie(message,*args):
     """:point_right: :point_right: ncie"""
-    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'ncie.png')
+    await client.send_file(message.channel,CONF.get('dir_pref','./') + 'ncie.png')
 
 @register('ncei')
 async def nice(message,*args):
     """minkle is bad"""
-    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'ncei.png')
+    await client.send_file(message.channel,CONF.get('dir_pref','./') + 'ncei.png')
 
 @register('nicenice')
 async def nicenice(message,*args):
     """:point_right: :point_right: nice"""
-    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'nicenice.png')
+    await client.send_file(message.channel,CONF.get('dir_pref','./') + 'nicenice.png')
 
 @register('nicenicenice')
 async def nicenicenice(message,*args):
     """:point_right: :point_right: nice"""
-    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'nicenicenice.gif')
+    await client.send_file(message.channel,CONF.get('dir_pref','./') + 'nicenicenice.gif')
 
 @register('oh')
 async def oh(message,*args):
     """*oh*"""
-    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'oh.png')
+    await client.send_file(message.channel,CONF.get('dir_pref','./') + 'oh.png')
 
 @register('java')
 async def java(message,*args):
     """how many layers of abstraction are you on"""
-    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'java.png')
+    await client.send_file(message.channel,CONF.get('dir_pref','./') + 'java.png')
 
 @register('g2a')
 async def g2a_is_bad(message,*args):
@@ -1635,7 +1635,7 @@ async def play_audio(message,*args):
 
         return
 
-    if not os.path.isfile(CONF.get('dir_pref','/home/shwam3/') + 'sounds/{}.mp3'.format(args[0])):
+    if not os.path.isfile(CONF.get('dir_pref','./') + 'sounds/{}.mp3'.format(args[0])):
         await client.send_message(message.channel,'Audio track `{}` not found.'.format(args[0]))
         return
 
@@ -1648,7 +1648,7 @@ async def play_audio(message,*args):
         await join_voice(message)
         voice = client.voice_client_in(message.server)
         if voice:
-            player = voice.create_ffmpeg_player(CONF.get('dir_pref','/home/shwam3/') + 'sounds/{}.mp3'.format(args[0]), after=lambda: disconn(client,message.server))
+            player = voice.create_ffmpeg_player(CONF.get('dir_pref','./') + 'sounds/{}.mp3'.format(args[0]), after=lambda: disconn(client,message.server))
             player.volume = 0.75
             player.start()
     except:
@@ -1684,7 +1684,7 @@ async def skinn_link(message,*args):
 @register('this')
 async def oh(message,*args):
     """^"""
-    await client.send_file(message.channel,CONF.get('dir_pref','/home/shwam3') + 'this.png')
+    await client.send_file(message.channel,CONF.get('dir_pref','./') + 'this.png')
 
 @register('vote','"<vote question>" <sequence of emoji responses>',rate=30)
 async def vote(message,*args):
@@ -2620,13 +2620,13 @@ def save_reminders():
     for rem in rems:
         rem['task'] = None
         str += json.dumps(rem, sort_keys=True, skipkeys=True) + '\n'
-    with open(CONF.get('dir_pref','/home/shwam3/')+'reminders.txt', 'w') as file:
+    with open(CONF.get('dir_pref','./')+'reminders.txt', 'w') as file:
         file.write(str)
 
 """Load reminders from file into memory"""
 reminders = []
-if os.path.isfile(CONF.get('dir_pref','/home/shwam3/')+'reminders.txt'):
-    with open(CONF.get('dir_pref','/home/shwam3/')+'reminders.txt') as file:
+if os.path.isfile(CONF.get('dir_pref','./')+'reminders.txt'):
+    with open(CONF.get('dir_pref','./')+'reminders.txt') as file:
         for line in file:
             try:
                 reminders.append(json.loads(line))
@@ -2636,8 +2636,8 @@ if os.path.isfile(CONF.get('dir_pref','/home/shwam3/')+'reminders.txt'):
 
 """Import definition overrides"""
 special_defs = {}
-if os.path.isfile(CONF.get('dir_pref','/home/shwam3/')+'special_defs.txt'):
-    with open(CONF.get('dir_pref','/home/shwam3/')+'special_defs.txt') as file:
+if os.path.isfile(CONF.get('dir_pref','./')+'special_defs.txt'):
+    with open(CONF.get('dir_pref','./')+'special_defs.txt') as file:
         for line in file:
             if line.find(':') < 0:
                 continue
@@ -2681,7 +2681,7 @@ async def update_status(cln):
 """Locate OAuth token"""
 token = CONF.get('token',None)
 if not token:
-    with open(CONF.get('dir_pref','/home/shwam3/')+'tokens.txt') as file:
+    with open(CONF.get('dir_pref','./')+'tokens.txt') as file:
         token = file.read().splitlines()[0]
 
 """Run program"""
