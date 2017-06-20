@@ -13,8 +13,8 @@ try:
 
     """
 
-    logging.basicConfig(format=CONF.get('log_format','[%(asctime)s] [%(levelname)s] %(message)s'),stream=sys.stdout)
-    logger = logging.getLogger('pedantbot')
+    logging.basicConfig(format=CONF.get('log_format','[%(asctime)s] [%(levelname)s] %(message)s'), stream=sys.stdout, level=logging.INFO)
+    logger = logging.getLogger('discord')
     logger.setLevel(logging.INFO)
 
     log_handler = logging.handlers.RotatingFileHandler(CONF.get('dir_pref','/home/shwam3/')+CONF.get('logfile','{}.log'.format(__file__)), 'a', backupCount=5, delay=True)
