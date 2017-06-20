@@ -54,6 +54,7 @@ exceptions = [IndexError,KeyError,ValueError]
 ALLOWED_EMBED_CHARS = ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~'
 client = discord.Client(shard_id=SHARD_ID,shard_count=SHARD_COUNT)
 client.redis = None
+logging.basicConfig(level=logging.INFO)
 pedant_db = MySQLdb.connect(user='pedant', password='7XlMqXHCLfGomDHu', db='pedant')
 
 """Command registration framework"""
