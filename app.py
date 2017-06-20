@@ -396,29 +396,6 @@ async def issues(message,*args):
     """get url to report bugs"""
     await client.send_message(message.channel,"Please post bug reports on GitHub.\n__https://github.com/MorkHub/PedantBot/issues__")
 
-@register('config',rate=3)
-async def get_config(message,*args):
-    """retrieve server-specific settings for this server"""
-    cursor = pedant_db.cursor()
-    
-    cursor.execute("SELECT `setting`,`value` FROM `pedant`.`settings` WHERE `server_id`= %s", (message.server.id,))
-
-    if cursor.rowcount < len(DEFAULTS):
-        for setting in DEFAULTS:
-            try:
-                cursor.execute("INSERT INTO `pedant`.`settings` (server_id,setting,value) VALUES (%s,%s,%s)", (server_id, setting, str(DEFAULTS.get(setting,False))))
-            except:
-                pass
-        cursor.execute("SELECT `setting`,`value` FROM `pedant`.`settings` WHERE `server_id`=%s", (message.server.id,))
-        pedant_db.commit()
-
-    page = ''
-    for (setting,value) in cursor:
-        page += "- {}: `{}`\n".format(setting,value)
-
-    embed = discord.Embed(title="Configuration for {server.name}".format(server=message.server),description=page)
-    await client.send_message(message.channel,embed=embed)
-
 @register('todo')
 async def trello(message,*args):
     """get todo trello board"""
