@@ -227,12 +227,12 @@ async def store_game(server, user):
             log.warning("no user")
             return
 
-        check = await client.redis.get('{}:status:check'.format(user.id))
+        check = await client.redis.get('Me:status:{}:check'.format(user.id))
         if check:
             return
 
-        await client.redis.set('{}:status:check'.format(user.id), '1', expire=30)
-        before = await client.redis.get('{}:status'.format(user.id)) or '{}'
+        await client.redis.set('Me:status:{}:check'.format(user.id), '1', expire=30)
+        before = await client.redis.get('Me:status:{}'.format(user.id)) or '{}'
         game = json.loads(before).get('game',{}).get('name','')
 
         if game == str(user.game):
@@ -252,7 +252,7 @@ async def store_game(server, user):
                 user_dict['game'][key]=value
 
         updated = await client.redis.set(
-            '{}:status'.format(user.id),
+            'Me:status:{}'.format(user.id),
             json.dumps(user_dict)
         )
 
