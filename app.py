@@ -1274,6 +1274,11 @@ async def nicenicenice(message,*args):
     """:point_right: :point_right: nice"""
     await client.send_file(message.channel,CONF.get('dir_pref','./') + 'nicenicenice.gif')
 
+@register('tite')
+async def tite(message,*args):
+    """tite"""
+    await client.send_file(message.channel,'tite.png')
+
 @register('oh')
 async def oh(message,*args):
     """*oh*"""
@@ -1524,7 +1529,7 @@ async def nicememe(message,*args):
     join = args[0].lower() != "s" if len(args) > 0 else True
     join_first = join and (isowner(user) or has_perm(user, "administrator"))
 
-    voice = await join_voice(message, join_first)
+    voice = await join_voice(message, False)
     if voice:
         player = voice.create_ffmpeg_player('/home/mark/Documents/pedant/nicememe.mp3', after=lambda: disconn(client,message.server))
         player.volume = 0.5
