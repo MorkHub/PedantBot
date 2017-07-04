@@ -1895,18 +1895,21 @@ async def calendar(message,*args):
 @register('roll','<dice eg. 2d8+3>')
 async def dice_roll(message,*args):
     """roll a die or dice"""
-    name = None
     args = list(args)
+    name = []
+    clean = []
     for arg in args:
         if not (
             arg[0].isnumeric() or
             arg[0] == 'd' and arg[1].isnumeric()
         ):
-            name = arg
-            args.remove(arg)
+            name.append(arg)
+        else:
+            clean.append(arg)
+    name = ' '.join(name)
+    clean = ' '.join(clean)
 
-    if not args: args = ('1d20',)
-    rolls = roll_dice(' '.join(args))
+    rolls = roll_dice(clean or "d20")
     if not rolls:
         await client.send_message(message.channel,"{}, you requested an invalid/stupid quantity of dice.".format(message.author.mention))
         return
