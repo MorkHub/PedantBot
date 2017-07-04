@@ -1895,6 +1895,16 @@ async def calendar(message,*args):
 @register('roll','<dice eg. 2d8+3>')
 async def dice_roll(message,*args):
     """roll a die or dice"""
+    name = None
+    args = list(args)
+    for arg in args:
+        if not (
+            arg[0].isnumeric() or
+            arg[0] == 'd' and arg[1].isnumeric()
+        ):
+            name = arg
+            args.remove(arg)
+
     if not args: args = ('1d20',)
     rolls = roll_dice(' '.join(args))
     if not rolls:
@@ -1903,8 +1913,8 @@ async def dice_roll(message,*args):
 
     msg = ''
     for roll in rolls:
-        msg += "•	`{}` total: `{}`\n".format(*roll)
-    embed = discord.Embed(title="{} rolls {} {}.".format(message.author,len(rolls),'die' if len(rolls) == 1 else 'dice'), description=msg, colour=message.author.colour)
+        msg += "•       `{}` total: `{}`\n".format(*roll)
+    embed = discord.Embed(title="{} rolls {} {}.".format(message.author, len(rolls), name or ('die' if len(rolls) == 1 else 'dice')), description=msg, colour=message.author.colour)
     embed.set_footer(icon_url="https://themork.co.uk/wiki/images/4/4c/Dice.png",text="PedantBot Dice")
 
     await client.send_message(message.channel,embed=embed)
