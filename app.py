@@ -109,11 +109,9 @@ async def on_ready():
     except:
         pass
 
-    i = 0
     try:
         client.users = set()
         for server in client.servers:
-            i += 1
             for user in server.members:
                 client.users.add( (user.id,str(user)) )
     except Exception as e:
@@ -133,7 +131,7 @@ async def on_ready():
     asyncio.ensure_future(update_status(client))
 
     try:
-       await client.redis.set('pedant.stats:servers', i)
+       await client.redis.set('pedant.stats:servers', len(client.servers))
     except Exception as e:
        logger.warning('Could not update stats.')
        logger.exception(e)
