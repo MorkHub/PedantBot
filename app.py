@@ -109,9 +109,11 @@ async def on_ready():
     except:
         pass
 
+    i = 0
     try:
         client.users = set()
         for server in client.servers:
+            i += 1
             for user in server.members:
                 client.users.add( (user.id,str(user)) )
     except Exception as e:
@@ -129,6 +131,12 @@ async def on_ready():
     asyncio.ensure_future(store_game('154698639812460544','154542529591771136'))
     asyncio.ensure_future(store_game('154698639812460544','154543065594462208'))
     asyncio.ensure_future(update_status(client))
+
+    try:
+       await client.redis.set('pedant.stats:servers', i)
+    except Exception as e:
+       logger.warning('Could not update stats.')
+       logger.exception(e)
 
 """Respond to messages"""
 @client.event
@@ -171,10 +179,23 @@ async def on_message(message):
 
                 if not last_used or (last_used < datetime_now - timedelta(seconds=cmd.rate)):
                     cmd.invokes[message.author.id] = datetime_now
-
                     if cmd.typing:
                         await client.send_typing(message.channel)
                     if not (cmd.owner or cmd.admin) or (cmd.owner and isowner(message.author)) or (cmd.admin and (isadmin(message.author) or isowner(message.author))):
+
+                        if cmd.alias_for:
+                            db_name = cmd.alias_for
+                        else:
+                            db_name = cmd.command_name
+
+                        try:
+                            added = await client.redis.incr('pedant.stats:command_uses:{}'.format(db_name))
+                            if added:
+                                await client.redis.sadd('pedant.stats:commands', db_name)
+                        except Exception as e:
+                            logger.warning('Could not update stats.')
+                            logger.exception(e)
+
                         executed = await cmd(message,*command_args)
                         if executed == False:
                             msg = await client.send_message(message.channel,MESG.get('cmd_usage','USAGE: {}.usage').format(cmd))
@@ -265,9 +286,23 @@ async def store_game(server, user):
     asyncio.ensure_future(store_game(server.id,user.id))
 
 @client.event
+async def on_server_leave(server):
+    logger.info('Left {server}'.format(server=server))
+    try:
+        await client.redis.decr('pedant.stats:servers')
+    except Exception as e:
+       logger.warning('Could not update stats.')
+       logger.exception(e)
+
+@client.event
 async def on_server_join(server):
     """notify owner when added to server"""
     logger.info("Joined {server.owner}'s {server} [{server.id}]".format(server=server))
+    try:
+        await client.redis.incr('pedant.stats:servers')
+    except Exception as e:
+       logger.warning('Could not update stats.')
+       logger.exception(e)
 
     embed = discord.Embed(
         title=server.name,
