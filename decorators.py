@@ -40,13 +40,13 @@ def command(pattern: str = "", db_name: str = None, description: str = "", usage
                 check = await storage.get("cooldown:{}:{}".format(db_name or name,message.author))
                 if check:
                     return
-                await storage.set("cooldown:{}:{}".format(db_name or name, message.author), expire=cooldown)
+                await storage.set("cooldown:{}:{}".format(db_name or name, message.author), 1, expire=cooldown)
 
             if global_cooldown:
                 check = await storage.get("global_cooldown:{}".format(db_name or name))
                 if check:
                     return
-                await storage.set("global_cooldown:{}".format(db_name or name), expire=global_cooldown)
+                await storage.set("global_cooldown:{}".format(db_name or name), 1, expire=global_cooldown)
 
             log.info("{}#{}@{} >> {}".format(
                 message.author.name,
