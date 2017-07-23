@@ -7,6 +7,7 @@ from util import redis_address
 """Start Plugins"""
 from plugins.admin import Admin
 from plugins.commands import Commands
+from plugins.define import Define
 from plugins.help import Help
 from plugins.info import Info
 from plugins.test import Test
