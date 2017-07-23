@@ -10,6 +10,7 @@ from plugins.commands import Commands
 from plugins.define import Define
 from plugins.help import Help
 from plugins.info import Info
+from plugins.levels import Levels
 from plugins.test import Test
 from plugins.time import Time
 """End Plugins"""
