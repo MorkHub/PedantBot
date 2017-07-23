@@ -371,8 +371,8 @@ def get(url):
 
 def redis_address(inp=''):
     address = inp + ':6379'
-    for match in re.findall(r'(.+?):([0-9]{1,5})', address):
-        return match
+    for address, port in re.findall(r'(.+?):([0-9]{1,5})', address):
+        return (address, int(port))
 
     return ("localhost", 6379)
 

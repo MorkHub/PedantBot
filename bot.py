@@ -34,12 +34,12 @@ if __name__ == "__main__":
     if not shard_count.isnumeric():
         raise ValueError("'SHARD_COUNT' must be of type 'int'")
 
-    if int(shard) < int(shard_count):
+    if int(shard) >= int(shard_count):
         raise ValueError("'SHARD_ID' must be less than 'SHARD_COUNT'")
 
     if redis_url is None or \
         len(redis_url) != 2 or \
-        not redis_url[1].isnumeric():
+        not 0 < redis_url[1] < 65535:
         raise ValueError("'REDIS_ADDRESS' is invalid")
 
     bot = Pedant(
