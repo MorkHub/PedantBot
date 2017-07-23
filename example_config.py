@@ -7,13 +7,11 @@ Rename this file 'pedant_config.py' to use
 CONF = {
     'log_format'   : '[%(asctime)s] [%(name)s] [%(levelname)s] [%(module)s:%(lineno)s %(funcName)s] %(message)s',
     'admins'       : [''],
-	'dir_pref'     : '/home/mark/Documents/pedant/',
-	'cmd_pref'     : '$',
-	'logfile'      : 'pedant.log',
-	'date_format'  : '%A %d %B %Y @ %I:%M%p',
-	'VERSION'      : '2.1.0',
-	'dad'          : True,
-  'voice_disconnect' : True,
+    'dir_pref'     : '/home/mark/Documents/pedant/',
+    'cmd_pref'     : '$',
+    'logfile'      : 'pedant.log',
+    'date_format'  : '%A %d %B %Y @ %I:%M%p',
+    'VERSION'      : '2.1.0',
 }
 
 SQL = {
