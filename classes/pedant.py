@@ -1,0 +1,329 @@
+# import logging
+# import os
+import asyncio
+import math
+
+from classes.database import Db
+
+from classes.plugin_manager import PluginManager
+from util import *
+
+log = logging.getLogger('pedantbot')
+
+
+class Pedant(discord.Client):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.redis_url = kwargs.get("redis_url")
+        self.db = Db(self.redis_url, self.loop)
+        self.plugin_manager = PluginManager(self)
+        self.plugin_manager.load_all()
+        self.ping_interval = 10
+
+    def run(self, *args):
+        self.loop.run_until_complete(self.start(*args))
+
+    async def start(self, *args, **kwargs):
+        try:
+            await super().start(*args, **kwargs)
+        except KeyboardInterrupt:
+            log.info('Shutting down...')
+            await self.logout()
+
+    async def ping(self):
+        await self.wait_until_ready()
+        while True:
+            keep_alive = math.ceil(self.ping_interval * 1.3)
+            if self.is_logged_in:
+                await self.db.redis.setex('heartbeat:{}:ping'.format(self.shard_id), keep_alive, '1')
+            else:
+                await self.db.redis.setex('heartbeat:{}:ping'.format(self.shard_id), keep_alive, '0')
+
+            await asyncio.sleep(self.ping_interval / 2)
+
+    async def on_ready(self):
+        for plugin in self.plugins:
+            self.loop.create_task(plugin.on_ready())
+
+        me = await self.application_info()
+
+        log.info('Client ready.')
+        log.info('Logged in as:')
+        log.info(' -> Client ID:   {}'.format(self.user.id))
+        log.info(' -> Client User: {}'.format(self.user))
+        log.info(' -> Invite URL:  {}'.format(discord.utils.oauth_url(
+            me.id,
+            permissions=discord.Permissions.all())
+        ))
+
+        self.loop.create_task(self.ping())
+
+    async def on_message(self, message: discord.Message):
+        if message.channel.is_private:
+            return
+        if message.author.__class__ != discord.Member:
+            return
+        if message.author == self.user:
+            return
+
+        server = message.server
+        if server is None:
+            return
+
+        if message.content.startswith((';enable', ';disable')) and \
+            len(message.content.split(maxsplit=1)) == 2:
+            channel = message.channel  # type: discord.Channel
+            user = message.author  # type: discord.Member
+
+            if not has_permission(user, "manage_server"):
+                await self.send_message(
+                    channel,
+                    "{user.mention}, You cannot modify server settings.\n"
+                    "Requires `manage_server`.".format(user=user)
+                )
+                return
+
+            cmd, plugin_name = message.content.split(maxsplit=1)
+            plugin_name = plugin_name.replace(" ", "_")
+            plugin = discord.utils.find(
+                lambda p: p.__class__.__name__.lower() == plugin_name.lower(),
+                self.plugins
+            )
+
+            if plugin is None:
+                await self.send_message(
+                    channel,
+                    "No such plugin: '{}'".format(
+                        clean_string(plugin_name)
+                    )
+                )
+                return
+
+            if plugin.owner_manage:
+                owners = await self.db.redis.smembers('owners') or []
+                if user.id not in owners:
+                    await self.send_message(
+                        channel,
+                        "{user.mention}, only my owner(s) can manage that plugin.\n"
+                        "Requires `bot_owner`.".format(
+                            user=user
+                        )
+                    )
+                    return
+
+            state = cmd == ";enable"
+
+            msg = await self.plugin_manager.set_plugin_state(plugin_name, server, state=state)
+
+            await self.send_message(
+                channel,
+                msg
+            )
+            return
+
+        enabled_plugins = await self.plugin_manager.get_all(server)
+
+        for p in enabled_plugins:
+            self.loop.create_task(p._on_message(message))
+
+        try:
+            await self.db.redis.incr('pedant3.stats:messages_received')
+        except Exception as e:
+            log.info("Could not update stats.")
+            log.exception(e)
+
+
+    async def send_message(self, destination, content=None, *, tts=False, embed=None):
+        dest = destination
+        if isinstance(dest, discord.Channel):
+            dest = dest.server
+
+        if isinstance(dest, discord.PrivateChannel):
+            dest = dest.name or dest.user
+
+        text = content or (embed.title or embed.description)
+        if text:
+            log.debug("Me@{} << {}".format(
+                dest,
+                truncate(text, 100)
+            ))
+
+        msg = await super().send_message(destination, content, tts=tts, embed=embed)
+
+        try:
+            await self.db.redis.incr('pedant3.stats:messages_sent')
+        except Exception as e:
+            log.info("Could not update stats.")
+            log.exception(e)
+
+        return msg
+
+    async def get_plugins(self, server):
+        plugins = await self.plugin_manager.get_all(server)
+        return plugins
+
+    async def on_message_edit(self, before, after):
+        server = before.server
+        if server is None:
+            return
+
+        for plugin in await self.plugin_manager.get_all(server):
+            self.loop.create_task(plugin.on_message_edit(before, after))
+
+    async def on_message_delete(self, message):
+        server = message.server
+        if server is None:
+            return
+
+        for plugin in await self.plugin_manager.get_all(server):
+            self.loop.create_task(plugin.on_message_delete(message))
+
+    async def on_channel_create(self, channel):
+        if channel.is_private:
+            return
+
+        server = channel.server
+        if server is None:
+            return
+
+        for plugin in await self.plugin_manager.get_all(server):
+            self.loop.create_task(plugin.on_channel_create(channel))
+
+    async def on_channel_update(self, before, after):
+        if before.is_private:
+            return
+
+        server = before.server
+        if server is None:
+            return
+
+        for plugin in await self.plugin_manager.get_all(server):
+            self.loop.create_task(plugin.on_channel_update(before, after))
+
+    async def on_channel_delete(self, channel):
+        if channel.is_private:
+            return
+
+        server = channel.server
+        if server is None:
+            return
+
+        for plugin in await self.plugin_manager.get_all(server):
+            self.loop.create_task(plugin.on_channel_delete(channel))
+
+    async def on_member_join(self, member):
+        server = member.server
+        if server is None:
+            return
+
+        for plugin in await self.plugin_manager.get_all(server):
+            self.loop.create_task(plugin.on_member_join(member))
+
+    async def on_member_remove(self, member):
+        server = member.server
+        if server is None:
+            return
+
+        for plugin in await self.plugin_manager.get_all(server):
+            self.loop.create_task(plugin.on_member_remove(member))
+
+    async def on_member_update(self, before, after):
+        server = before.server
+        if server is None:
+            return
+
+        for plugin in await self.plugin_manager.get_all(server):
+            self.loop.create_task(plugin.on_member_update(before, after))
+
+    async def on_server_join(self, server):
+        await self.db.redis.sadd('servers', server.id)
+
+        log.info("Joined {}'s server: '{}'".format(
+            clean_string(server.owner.name),
+            clean_string(server.name)
+        ))
+        log.debug('Adding server {}\'s id to db'.format(server.id))
+        await self.db.redis.set('server:{}:name'.format(server.id), server.name)
+        if server.icon:
+            await self.db.redis.set(
+                'server:{}:icon'.format(server.id),
+                server.icon
+            )
+
+        for plugin in await self.plugin_manager.get_all(server):
+            self.loop.create_task(plugin.on_server_join(server))
+
+    async def on_server_update(self, before, after):
+        for plugin in await self.plugin_manager.get_all(before):
+            self.loop.create_task(plugin.on_server_uppdate(before, after))
+
+    async def on_server_remove(self, server):
+        log.info('Leaving {} server : {} !'.format(
+            server.owner.name,
+            server.name
+        ))
+        log.debug('Removing server {}\'s id from the db'.format(
+            server.id
+        ))
+        await self.db.redis.srem('servers', server.id)
+
+        for plugin in await self.plugin_manager.get_all(server):
+            self.loop.create_task(plugin.on_server_uppdate(server))
+
+    async def on_server_role_create(self, server, role):
+        server = role.server
+        if server is None:
+            return
+
+        for plugin in await self.plugin_manager.get_all(server):
+            self.loop.create_task(plugin.on_server_role_create(server, role))
+
+    async def on_server_role_delete(self, role):
+        server = role.server
+        if server is None:
+            return
+
+
+        for plugin in await self.plugin_manager.get_all(server):
+            self.loop.create_task(plugin.on_server_role_delete(role))
+
+    async def on_server_role_update(self, before, after):
+        server = before.server
+        if server is None:
+            return
+
+
+        for plugin in await self.plugin_manager.get_all(server):
+            self.loop.create_task(plugin.on_server_role_update(before, after))
+
+    async def on_voice_state_update(self, before, after):
+        server = before.server
+        if server is None:
+            return
+
+        for plugin in await self.plugin_manager.get_all(server):
+            self.loop.create_task(plugin.on_voice_state_update(before, after))
+
+    async def on_member_ban(self, member):
+        server = member.server
+        if server is None:
+            return
+
+        for plugin in await self.plugin_manager.get_all(server):
+            self.loop.create_task(plugin.on_member_ban(member))
+
+    async def on_member_unban(self, member):
+        server = member.server
+        if server is None:
+            return
+
+        for plugin in await self.plugin_manager.get_all(server):
+            self.loop.create_task(plugin.on_member_unban(member))
+
+    async def on_typing(self, channel, user, when):
+        server = channel.server
+        if server is None:
+            return
+
+        for plugin in await self.plugin_manager.get_all(server):
+            self.loop.create_task(plugin.on_typing(channel, user, when))

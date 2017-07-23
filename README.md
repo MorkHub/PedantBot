@@ -1,78 +1,107 @@
-# PedantBot v2.0 [beta]
-**NOTE**: This version may contain broken builds. Use at your own risk.
+# PedantBot v3.0 **WIP**
 
-```python
-@register('git',owner=False,hidden=False,rate=5)
-async def welcome(message,*args):
-  logger.info('{user} wants to view the GitHub repository'.format(user=message.author))
-  await client.send_message(message.channel, 'Come find out about me at: https://github.com/MorkHub/PedantBot')
-```
+![screenshot](https://i.themork.co.uk/7d5f012.png "PedantBot in action")
+
 ## Contents
-* Add to your server
-* How to use
-* Commands
-  * [For fun](#fun)
-  * [Useful](#useful)
-  * [Dev](#dev)
-  * [Admin-only (bot owner)](#admin)
+* [Requirements](#requirements)
+* [Installation](#installation)
+* [Add to your server](#add-to-your-server)
+* [How to use](#how-to-use)
+* [Screenshots](#screenshots)
 
-### Commands
-	Prefix: \
-	USAGE: \command <required> [optional]
-	For more details: \help [command]
+## Requirements
+PedantBot is written for *python 3.5*, support for 3.4 and below unlikely with no plans to support 2.x.
 
-### [Add to your server](https://discordapp.com/oauth2/authorize?client_id=169112287297142784&scope=bot&permissions=1848765527 "Discord invite link")
+Any operating system which supports Python *should* be supported, tested and working on the following:
+* Windows 10 Education (64-bit)
+* Ubuntu Server 16.04 (64-bit)
 
-### Commands
+To install requirements, `requirements.txt` is provided for automatic installation via [pip](https://pip.pypa.io/en/stable/installing/).<br>
+If installing manually, the following are required.
 
-#### Fun
-| Command            | Parameters                                 |  Description  |
-| ------------------ | ------------------------------------------ | ------------- |
-| **avatar**         | `@<mention user>`                          | Display a user's avatar
-| **bigger**         | `<custom server emoji>`                    | Display a larger image of the specified emoji
-| **elijah**         |                                            | elijah wood
-| **grid**           | `<x> <y>`                                  | Display a custom-size grid made of server custom emoji
-| **random**         |                                            | Retrieve a random WikiPedia article
-| **quote**          | `[quote id]`                               | Embed a quote from https://themork.co.uk/quotes
-| **showemoji**      |                                            | Displays all available custom emoji in this server
-| **shrug**          |                                            | Send a shrug: mobile polyfill
-| **woop**           |                                            | fingers or something
-| **wrong**          |                                            | Send the WRONG! image
-| **thyme**          |                                            | Send some thyme to your friends
-| **vote**           | `"<vote question>" <emoji>`                | Initiate a vote using Discord Message Reactions.
+    asyncio
+    discord.py[voice]
+    youtube-dl
+    aioredis
+    redis
+    pytz
+    requests
+    youtube_dl
+    dateutils
+    Pillow
 
-#### Useful
-| Command            | Parameters                                 |  Description  |
-| ------------------ | ------------------------------------------ | ------------- |
-| **help**           | `[command name]`                           | Display help message(s), optionally append command name for specific help
-| **age**            |                                            | Get user's Discord age
-| **cal**            |                                            | Displays a formatted calendar
-| **remindme**       | `in <number of> [secs|mins|hours|days]`    | 
-| **editreminder**   | `<reminder ID> <message|timestamp> [data]` | Edit scheduled reminders
-| **cancelreminder** | `<reminder id>`                            | Cancel an existing reminder
-| **reminders**      |                                            | 
-| **define**         | `<term>`                                   | Search for a wikipedia page and show summary
-| **invite**         |                                            | List active invite link for the current server
-| **maths**          | `<expression>`                             | Perform mathematical calculation
+In addition, the following programs/packages may be required:
+    
+    redis
+    docker (optional)   
 
-#### Dev
-| Command            | Parameters                                 |  Description  |
-| ------------------ | ------------------------------------------ | ------------- |
-| **oauth**          | `[OAuth client ID] [server ID]`            | Get OAuth invite link
-| **ping**           | `[<host> [count]]`                         | Test latency by receiving a ping message
-| **test**           | `[list of parameters]`                     | Print debug output
+## Installation
 
-#### Admin
-| Command            | Parameters                                 |  Description  |
-| ------------------ | ------------------------------------------ | ------------- |
-| **bannedusers**    |                                            | List users that have been banned from this server
-| **ban**            | `@<mention users>`                         | Bans the specified user from the server
-| **channels**       | `[server ID]`                              | Displays a list of channels and servers currently available 
-| **ip**             |                                            | Looks up external IP of the host machine
-| **kick**           | `@<mention users>`                         | Kicks the specified user from the server
-| **perms**          |                                            | List permissions available to this  bot
-| **ranks**          |                                            | Displays a list of ranks in the server
-| **restart**        |                                            | Restart the bot
-| **sendmsg**        | `<channel> <content>`                      | Harness the power of Discord
-| **servers**        |                                            | Lists servers currently connected
-| **speedtest**      |                                            | Run a speedtest from the bot's LAN.
+### Basic
+1. Clone this repository: `git clone http://git.themork.co.uk/TheMork/PedantBot.git`
+2. Install dependencies
+    * pip: `pip install -r requirements.txt` OR
+    * manually install all the python packages listed in the [requirements](#requirements) section
+3. Ensure the redis server is running, and that you know port it is running on.
+4. Start the bot ```env python3```
+
+<!--### Docker container
+1. Ensure docker is installed on your system, and is running
+2. Build the docker image with `docker build -t morkhub/pedantbot`
+3. Create the docker container, substituting the values enclosed in `{}`.
+```
+docker run morkhub/pedantbot --name=PedantBot \
+    -link redis:redis
+    -e REDIS_ADDRESS={REDIS_ADDRESS}
+    -e SHARDS={NUM_SHARDS}
+    -e credentials.env
+```-->
+
+## Add to your server
+
+**NOTE:** You must have the `manage_server` permission to add bots.
+
+#### Public Instance
+[Click here](https://discordapp.com/oauth2/authorize?client_id=221788578529804288&scope=bot&permissions=1848765527 "Discord invite link") 
+ to invite the public instance to your server.
+
+#### Self-hosted
+When running this bot, it will output an invite link to `stdout`, or you can use the following template, replacing `{CLIENT_ID}` with your bot's [client ID](https://i.themork.co.uk/a7ebcbe.png)
+```
+https://discordapp.com/oauth2/authorize?client_id={CLIENT_ID}&permissions=1848765527&scope=bot
+```
+
+### How to use
+Say `?help` in Discord when the bot has joined to view a list of enabled plugins. You can then use `?help <plugin>` to view commands for that plugin.
+
+**Syntax:**<br>
+Arguments enclosed by `<>` indicate required arguments, whereas `[]` indicated optional arguments:  
+```
+!command_name <required argument> [optional argument]
+```
+
+To enable a plugin, say `;enable <plugin>` and to disable a plugin, `;disable <plugin>`. This requires `manage_server` permission.
+
+## Screenshots
+
+Get help<br>
+![help menu](https://i.themork.co.uk/b88c6cf.png "list of plugins")
+
+List plugin commands<br>
+![command_list](https://i.themork.co.uk/43a0627.png "list of commands in a plugin")
+
+Get user's local time<br>
+![local time](https://i.themork.co.uk/deb4e8b.png "user's local time")
+
+Create custom commands<br>
+![custom reactions](https://i.themork.co.uk/b2a0b5c.png "adding a custom reaction")
+
+Get server information<br>
+![server info](https://i.themork.co.uk/5987050.png "view server infomation")
+
+Set reminders<br>
+![set reminder](https://i.themork.co.uk/044753b.png "setting a reminder")
+
+Reminders<br>
+![reminder](https://i.themork.co.uk/09ec4b7.png "a reminder")
+
