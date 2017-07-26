@@ -1,6 +1,5 @@
-import logging
-
 import wikipedia
+import urbandict
 from classes.plugin import Plugin
 
 from decorators import *
@@ -15,20 +14,16 @@ class Define(Plugin):
     def __init__(self, *args, **kwargs):
         Plugin.__init__(self, *args, **kwargs)
 
-    async def on_message(self, message: discord.Message):
-        if message.author.bot:
-            return
-
-    @command(pattern="^!wikipedia (.+)$",
+    @command(pattern="^!(?:wikipedia|wp) (.+)$",
              description="lookup a term on wikipedia",
              usage="!wikipedia <term>")
     async def wikipedia_lookup(self, message: discord.Message, args: tuple):
-        server = message.server  # type: discord.Server
         channel = message.channel  # type: discord.Channel
         user = message.author  # type: discord.Member
 
         term = args[0]
 
+        await self.client.send_typing(channel)
         results = wikipedia.search(term, 5)
         if len(results) == 0:
             await self.client.send_message(
@@ -64,7 +59,7 @@ class Define(Plugin):
                 "Please select one of the following: \n\n{}```".format(
                     '\n'.join('**{}.** `{}`: {}'.format(n, item[0], item[1]) for n, item in enumerate(summaries))
                 ) + '\n**c**  cancel',
-                options = tuple([*[str(x) for x in range(len(results))], 'c']),
+                options=tuple([*[str(x) for x in range(len(results))], 'c']),
                 colour=discord.Colour.orange()
             )
 
@@ -74,6 +69,7 @@ class Define(Plugin):
             if res.content.lower() == 'c':
                 return
             else:
+                await self.client.send_typing(channel)
                 page = self.get_wikipedia_page(results[int(res.content)])
 
         summary = markdown_links(
@@ -129,7 +125,7 @@ class Define(Plugin):
                 '<a href="https://wikipedia.org/wiki/{page}">{label}</a>'.format(
                     n=n,
                     label=link,
-                    page=link.replace(" ","_")
+                    page=link.replace(" ", "_")
                 ),
                 1
             )
@@ -138,6 +134,69 @@ class Define(Plugin):
 
     # TODO: !define from wordsapi.com
 
-    # TODO: !urban from urbandict.com
-
     # TODO: !thesaurus, API unknown
+
+    @command(pattern="^!(?:urbandict|urban|ud) (.+)$",
+             description="lookup definitions for a word on urbandictionary",
+             usage="!urbandict <term>")
+    async def urbandict_lookup(self, message: discord.Message, args: tuple):
+        channel = message.channel
+        user = message.author
+
+        definition = None
+
+        await self.client.send_typing(channel)
+        definitions = urbandict.define(args[0])
+
+        body = ""
+        if len(definitions) > 1:
+            for i in range(min(5, len(definitions))):
+                _def = definitions[i]
+                body += "`[{}]` **{}**\n".format(i, _def.get('word', 'none').title().replace('\n', ''))
+                body += '```{:.200}```\n'.format(_def.get('def', 'no definition found'))
+
+            res = await confirm_dialog(
+                self.client,
+                channel,
+                user,
+                title="Multiple definitions for '{}'".format(args[0]),
+                description=body,
+                options=tuple(str(x) for x in range(len(definitions))),
+                colour=discord.Colour.orange()
+            )
+
+            if not res or res.content == '0':
+                definition = definitions[0]
+            else:
+                definition = definitions[int(res.content)]
+
+        if not definition:
+            definition = definitions[0]
+
+        await self.client.send_typing(channel)
+
+        for i in definition:
+            definition[i] = re.sub(r'/\n+/', r'\n', definition[i])
+
+        embed = discord.Embed(
+            title=definition.get('word', 'No title'),
+            colour=discord.Colour.gold(),
+            url='http://www.urbandictionary.com/define.php?term=' + re.sub(' ', '%20', definition['word']),
+            description=definition.get('def', 'no definition found')
+        )
+
+        embed.set_footer(
+            text='Urban Dictionary',
+            icon_url='http://d2gatte9o95jao.cloudfront.net/assets/apple-touch-icon-2f29e978facd8324960a335075aa9aa3.png'
+        )
+
+        if re.sub(r'\n', r'', definition['example']) != '':
+            embed.add_field(
+                name='Example',
+                value=definition.get('example', 'No example found')
+            )
+
+        await self.client.send_message(
+            channel,
+            embed=embed
+        )
