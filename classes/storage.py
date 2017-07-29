@@ -8,7 +8,7 @@ class Storage():
 
     async def keys(self, pattern, encoding=None):
         key = self.namespace + pattern
-        return self.redis.keys(pattern, encoding)
+        return self.redis.keys(pattern, encoding=encoding)
 
     async def set(self, key, value, expire=0):
         key = self.namespace + key
@@ -22,15 +22,15 @@ class Storage():
         key = self.namespace + key
         return await self.redis.get(key)
 
-    async def smembers(self, key):
+    async def smembers(self, key) -> set:
         key = self.namespace + key
         return await self.redis.smembers(key)
 
-    async def sismember(self, key, member):
+    async def sismember(self, key, member) -> bool:
         key = self.namespace + key
         return await self.redis.sismember(key, member)
 
-    async def srem(self, key, member):
+    async def srem(self, key, member) -> bool:
         key = self.namespace + key
         return await self.redis.srem(key, member)
 
@@ -38,7 +38,7 @@ class Storage():
         key = self.namespace + key
         return await self.redis.sadd(key, member, *members)
 
-    async def delete(self, key, *keys):
+    async def delete(self, key, *keys) -> bool:
         key = self.namespace + key
         return await self.redis.delete(key, *keys)
 
@@ -54,7 +54,7 @@ class Storage():
             store=None
         )
 
-    async def ttl(self, key):
+    async def ttl(self, key) -> int:
         key = self.namespace + key
         return await self.redis.ttl(key)
 
@@ -62,11 +62,11 @@ class Storage():
         key = self.namespace + key
         return await self.redis.expire(key, timeout)
 
-    async def incr(self, key):
+    async def incr(self, key) -> int:
         key = self.namespace + key
         return await self.redis.incr(key)
 
-    async def incrby(self, key, amount):
+    async def incrby(self, key, amount) -> int:
         key = self.namespace + key
         return await self.redis.incrby(key, amount)
 
@@ -82,9 +82,13 @@ class Storage():
         key = self.namespace + key
         return await self.redis.lpop(key, *values)
 
-    async def lrange(self, key, start, stop):
+    async def lrange(self, key, start, stop) -> list:
         key = self.namespace + key
         return await self.redis.lrange(key, start, stop)
+
+    async def lindex(self, key, index, *, encoding):
+        key = self.namespace + key
+        return await self.redis.lindex(key, index, encoding=encoding)
 
     async def lrem(self, key, count, value):
         key = self.namespace + key
@@ -100,3 +104,7 @@ class Storage():
     async def rpush(self, key, value, *values):
         key = self.namespace + key
         return await self.redis.rpush(key, value, *values)
+
+    async def llen(self, name) -> int:
+        key = self.namespace + name
+        return await self.redis.llen(key)
