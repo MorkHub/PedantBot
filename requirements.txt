@@ -1,0 +1,12 @@
+asyncio
+discord.py[voice]
+youtube-dl
+aioredis
+redis
+pytz
+requests
+youtube_dl
+dateutils
+Pillow
+wikipedia
+urbandict
