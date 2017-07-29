@@ -28,7 +28,7 @@ class Message(JSONDict):
         self.author = message.author
         self.attachments = message.attachments
         self.channel_mentions = message.channel_mentions
-        self.embeds = tuple(embed.__dict__ for embed in message.embeds)
+        self.embeds = tuple(embed.__dict__ if hasattr(embed,'__dict__') else embed for embed in message.embeds)
         self.edited_timestamp = message.edited_timestamp  # type: datetime.datetime
         self.timestamp = message.timestamp  # type: datetime.datetime
         self.pinned = message.pinned
