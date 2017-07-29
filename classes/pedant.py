@@ -12,8 +12,8 @@ log = logging.getLogger('pedantbot')
 
 
 class Pedant(discord.Client):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.redis_url = kwargs.get("redis_url")
         self.db = Db(self.redis_url, self.loop)
         self.plugin_manager = PluginManager(self)
@@ -71,7 +71,7 @@ class Pedant(discord.Client):
             return
 
         if message.content.startswith((';enable', ';disable')) and \
-            len(message.content.split(maxsplit=1)) == 2:
+                len(message.content.split(maxsplit=1)) == 2:
             channel = message.channel  # type: discord.Channel
             user = message.author  # type: discord.Member
 
@@ -86,7 +86,7 @@ class Pedant(discord.Client):
             cmd, plugin_name = message.content.split(maxsplit=1)
             plugin_name = plugin_name.replace(" ", "_")
             plugin = discord.utils.find(
-                lambda p: p.__class__.__name__.lower() == plugin_name.lower(),
+                lambda _plugin: _plugin.__class__.__name__.lower() == plugin_name.lower(),
                 self.plugins
             )
 
@@ -129,9 +129,8 @@ class Pedant(discord.Client):
         try:
             await self.db.redis.incr('pedant3.stats:messages_received')
         except Exception as e:
-            log.info("Could not update stats.")
+            log.warning("Could not update stats.")
             log.exception(e)
-
 
     async def send_message(self, destination, content=None, *, tts=False, embed=None):
         dest = destination
@@ -153,10 +152,53 @@ class Pedant(discord.Client):
         try:
             await self.db.redis.incr('pedant3.stats:messages_sent')
         except Exception as e:
-            log.info("Could not update stats.")
+            log.warning("Could not update stats.")
             log.exception(e)
 
         return msg
+
+    async def kick(self, member):
+        _return = await super().kick(member)
+        await self.db.redis.incr('pedant3.stats:kicked')
+        return _return
+
+    async def ban(self, member, delete_message_days=1):
+        _return = await super().ban(member, delete_message_days=delete_message_days)
+        await self.db.redis.incr('pedant3.stats:banned')
+        return _return
+
+    async def pin_message(self, message):
+        _return = await super().pin_message(message)
+        await self.db.redis.incr('pedant3.stats:pinned')
+        return _return
+
+    async def prune_members(self, server, *, days):
+        pruned = await super().prune_members(server, days)
+        await self.db.redis.incrby('pedant3.stats:pruned', pruned)
+        return pruned
+
+    async def purge_from(self, channel, *, limit=100, check=None, before=None, after=None, around=None):
+        purged = await super().purge_from(channel, limit=limit, check=check, before=before, after=after, around=around)
+        if purged:
+            await self.db.redis.incrby('pedant3.stats:bulk_deleted', len(purged))
+        return purged
+
+    async def delete_message(self, message):
+        deleted = await super().delete_message(message)
+        if deleted:
+            await self.db.redis.incr('pedant3.stats:deleted')
+        return deleted
+
+    async def delete_messages(self, messages):
+        deleted = await super().delete_messages(messages)
+        if deleted:
+            await self.db.redis.incrby('pedant3.stats:bulk_deleted', len(deleted))
+        return deleted
+
+    async def send_file(self, destination, fp, *, filename=None, content=None, tts=False):
+        _return = await super().send_file(destination, fp=fp, filename=filename, content=content, tts=tts)
+        sent = await self.db.redis.incr('pedant3.stats:files_sent')
+        return _return
 
     async def get_plugins(self, server):
         plugins = await self.plugin_manager.get_all(server)
@@ -258,7 +300,7 @@ class Pedant(discord.Client):
             self.loop.create_task(plugin.on_server_uppdate(before, after))
 
     async def on_server_remove(self, server):
-        log.info('Leaving {} server : {} !'.format(
+        log.info('Leaving {} server: {} !'.format(
             server.owner.name,
             server.name
         ))
@@ -268,13 +310,9 @@ class Pedant(discord.Client):
         await self.db.redis.srem('servers', server.id)
 
         for plugin in await self.plugin_manager.get_all(server):
-            self.loop.create_task(plugin.on_server_uppdate(server))
+            self.loop.create_task(plugin.on_server_remove(server))
 
     async def on_server_role_create(self, server, role):
-        server = role.server
-        if server is None:
-            return
-
         for plugin in await self.plugin_manager.get_all(server):
             self.loop.create_task(plugin.on_server_role_create(server, role))
 
@@ -283,7 +321,6 @@ class Pedant(discord.Client):
         if server is None:
             return
 
-
         for plugin in await self.plugin_manager.get_all(server):
             self.loop.create_task(plugin.on_server_role_delete(role))
 
@@ -291,7 +328,6 @@ class Pedant(discord.Client):
         server = before.server
         if server is None:
             return
-
 
         for plugin in await self.plugin_manager.get_all(server):
             self.loop.create_task(plugin.on_server_role_update(before, after))
@@ -321,6 +357,9 @@ class Pedant(discord.Client):
             self.loop.create_task(plugin.on_member_unban(member))
 
     async def on_typing(self, channel, user, when):
+        if channel.is_private:
+            return
+
         server = channel.server
         if server is None:
             return
