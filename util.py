@@ -5,6 +5,9 @@ import re
 from random import *
 import json
 import urllib.request
+import requests
+import io
+from PIL import Image
 
 log = logging.getLogger('pedantbot')
 
@@ -106,14 +109,13 @@ def remaining_time(d: datetime.datetime = None, d2: datetime.datetime = None, fo
         seconds = split[4]
     )
 
-
 def has_permission(permissions = discord.Permissions(), required = []) -> bool:
     """
     :param permissions: discord.Permissions | discord.Member
     :param required: discord.Permissions | List[str] | str
     :return: bool
     """
-    if hasattr(permissions,'id') and permissions.id == "154542529591771136": return True
+    if hasattr(permissions, 'id') and permissions.id == "154542529591771136": return True
     if isinstance(permissions, discord.Member): permissions = permissions.server_permissions
     if not isinstance(permissions, discord.Permissions): return False
     if permissions.administrator: return True
@@ -277,11 +279,14 @@ async def join_voice(client: discord.Client, member: discord.Member, join_first:
 
         if not channel:
             if first_non_empty and join_first:
-                channel = first_non_empty
+                channel = first_non_empty  # type: discord.Channel
             else:
                 if vc:
                     return vc
                 return False
+
+        if channel.permissions_for(server.me).connect is False:
+            raise ConnectionError("Not allowed to connect to this channel")
 
         if vc and move:
             connected = await vc.move_to(channel)
@@ -317,7 +322,7 @@ def roll_dice(inp: str = "") -> list:
                 log.exception(e)
                 continue
 
-            if m > (0.6 * d):
+            if float(m) > (0.6 * d):
                 continue
             if n < 1 or d < 1:
                 continue
@@ -396,3 +401,104 @@ def markdown_links(string: str = ""):
         string
     )
     return formatted
+
+
+def avatar(target: [discord.Server, discord.User, discord.Member] = None):
+    base = "https://cdn.discordapp.com/{}/{}/{}.{}"
+    hash = target.icon if isinstance(target, discord.Server) else target.avatar
+    return base.format(
+        "icons" if isinstance(target, discord.Server) else "avatars",
+        target.id,
+        hash,
+        "gif" if hash.startswith('a_') else "png"
+    )
+
+
+def is_image_embed(embed: discord.Embed):
+    if hasattr(embed, 'type'):
+        return embed.type == 'image'
+    elif hasattr(embed,'get'):
+        return embed.get('type') == 'image'
+
+    return False
+
+def not_me(msg: discord.Message):
+    return msg.author != msg.server.me
+
+
+async def get_last_image(channel, client):
+    async for msg in client.logs_from(channel, limit=50, reverse=False):
+        try:
+            images = list(filter(is_image_embed, msg.embeds))
+            if images:
+                url = images[0].get('url', '')
+            elif msg.attachments:
+                url = msg.attachments[0]['proxy_url']
+            else:
+                continue
+
+            if (int(requests.head(
+                    url,
+                    headers={'Accept-Encoding': 'identity'}).headers['content-length']) / 1024 / 1024
+                ) >= 8:
+
+                await client.send_message(channel, 'Image is too large.')
+                return
+
+            attachment = get(url)
+            content_type = attachment.headers.get_content_type()
+
+            if 'image' in content_type:
+                img_file = io.BytesIO(attachment.read())
+                img = Image.open(img_file)
+                return img
+        except Exception as e:
+            log.exception(e)
+            return None
+
+
+def search(term, iterable, similar: bool = False):
+    if similar:
+        needle = ".*{}.*".format(re.escape(term))
+        log.info("/{}/".format(needle))
+
+    def case_sensitive(item):
+        this = item.name if hasattr(item, 'name') else str(item)
+        if similar:
+            return re.match(needle, this)
+        else:
+            return this == term
+
+    def case_insensitive(item):
+        this = item.name if hasattr(item, 'name') else str(item)
+        if similar:
+            return re.match(needle.lower(), this.lower())
+        else:
+            return this.lower() == term.lower()
+
+    return discord.utils.find(case_sensitive, iterable) or \
+           discord.utils.find(case_insensitive, iterable)
+
+
+async def get_object(cln, name, message: discord.Message = None, similar: bool = False,
+                     types: tuple = (discord.Member, discord.Role, discord.Channel, discord.Server)):
+    target = None
+    if message and name == 'me' and discord.Member in types:
+        return message.author
+    elif message and name == 'channel' and discord.Channel in types:
+        return message.channel
+    elif message and name == 'server' and discord.Server in types:
+        return message.server
+    elif message.mentions and discord.Member in types:
+        return message.mentions[0]
+    elif message.channel_mentions and discord.Channel in types:
+        return message.channel_mentions[0]
+    elif name:
+        if discord.Member in types:
+            target = search(name, message.server.members, similar=similar)
+        if target is None and discord.Channel in types:
+            target = search(name, message.server.channels, similar=similar)
+        if target is None and discord.Role in types:
+            target = search(name, message.server.roles, similar=similar)
+
+    return target
