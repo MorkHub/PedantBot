@@ -24,7 +24,12 @@ class Define(Plugin):
         term = args[0]
 
         await self.client.send_typing(channel)
-        results = wikipedia.search(term, 5)
+
+        if term.lower() == "random":
+            results = [wikipedia.random(1)]
+        else:
+            results = wikipedia.search(term, 5)
+
         if len(results) == 0:
             await self.client.send_message(
                 channel,
@@ -35,7 +40,7 @@ class Define(Plugin):
             return
 
         elif len(results) == 1:
-            page = self.get_wikipedia_page(term)
+            page = self.get_wikipedia_page(results[0])
         else:
             summaries = []
             for result in results:
