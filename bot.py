@@ -1,7 +1,6 @@
 import logging
 import os
 
-from classes.pedant import Pedant
 from util import redis_address
 
 """Start Plugins"""
@@ -22,10 +21,15 @@ redis_url = redis_address(os.getenv('REDIS_ADDRESS') or '')
 
 logging.basicConfig(
     level=logging.INFO,
-    format='⇒ [%(asctime)s]:%(levelname)s:pedantbot#{}: %(message)s'.format(shard)
+    format='⇒ [%(asctime)s]:%(levelname)s:pedantbot#{}: %(message)s'.format(shard),
+    datefmt="%d-%b-%Y %H:%M:%S"
 )
 
+VERSION = '3.0.1'
+
 if __name__ == "__main__":
+    from classes.pedant import Pedant
+
     if token is None:
         raise ValueError("required env variable 'TOKEN' not found.")
 
