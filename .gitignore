@@ -25,3 +25,7 @@ pedant_config.py
 *.gif
 *.gifv
 *.jpeg
+
+\.idea/
+
+*.exe
