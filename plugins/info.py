@@ -47,13 +47,20 @@ class Info(Plugin):
         channel = message.channel
 
         body = ""
+        displayed = 0
         for server in self.client.servers:
-            body += '•   __{server.owner.name}\'s__ **{server.name}** (`{server.id}`)\n'.format(
+            temp = '•   __{server.owner.name}\'s__ **{server.name}** ([{server.id}](https://themork.co.uk/code?code={server.id}))\n'.format(
                 server=server
             )
+            if len(body) + len(temp) <= 1500:
+                body += temp
+                displayed += 1
+            else:
+                body += "{} more ...".format(len(self.client.servers) - displayed)
+                break
 
         embed = discord.Embed(
-            title='Servers {0} is connected to.'.format(self.client.user),
+            title='Servers {0} is connected to ({1}/{2} shown)'.format(self.client.user, displayed, len(self.client.servers)),
             colour=discord.Colour.purple(),
             description=body
         )
@@ -174,7 +181,7 @@ class Info(Plugin):
                   "Roles: {roles}\n".format(
                 age=' '.join(x for x in remaining_time(
                     datetime.datetime.now(),
-                    server.created_at, format=True)[:3] if x[0] != "0"),
+                    server.created_at, fmt=True)[:3] if x[0] != "0"),
                 members=server.member_count,
                 channels=len(server.channels),
                 roles=len(server.roles) -1
@@ -186,16 +193,26 @@ class Info(Plugin):
             embed=embed
         )
 
-    @command(pattern="^!(?:roles|ranks)$",
+    @command(pattern="^!(?:roles|ranks)(?: (.*))?$",
              description="view a list of all roles in the server",
-             usage="!roles")
-    async def server_roles(self, message: discord.Message, *_):
+             usage="!roles [user]")
+    async def server_roles(self, message: discord.Message, args: tuple):
         server = message.server
         channel = message.channel
         user = message.author
 
         pad = 0
-        for role in server.roles:
+        padm = 0
+
+        target = await get_object(
+            self.client,
+            name=args[0],
+            message=message,
+            types=(discord.Member,),
+            similar=True
+        ) if args[0] else server
+
+        for role in target.roles:
             if role.is_everyone:
                 continue
 
@@ -203,16 +220,32 @@ class Info(Plugin):
             if size > pad:
                 pad = size
 
+        members = {}
+        for member in server.members:
+            for role in member.roles:
+                if role.is_everyone:
+                    continue
+
+                if role.id not in members:
+                    members[role.id] = 0
+                members[role.id] += 1
+
         msg = "Roles in {}\n".format(server)
-        for role in sorted(server.roles, key=lambda r: -r.position):
+        for role in sorted(target.roles, key=lambda r: -r.position):
             if role.is_everyone:
                 continue
 
-            msg += " • `[{role.id}] {name:<{pad}} {role.colour} hoist: {role.hoist}`\n".format(
+            temp = "• `[{role.id}] ({members}) {name:<{pad}} {role.colour} {role.permissions.value} {hoist}`\n".format(
                 pad=pad,
                 role=role,
-                name=clean_string(role.name)
+                name=clean_string(role.name),
+                members=members.get(role.id, 0),
+                hoist='hoisted' if role.hoist else ''
             )
+            if len(msg) + len(temp) <= 1800:
+                msg += temp
+            else:
+                break
 
         await self.client.send_message(
             channel,
@@ -266,6 +299,29 @@ class Info(Plugin):
         await self.client.send_message(
             channel,
             embed=embed
+        )
+
+    @command(pattern="^!emojis$",
+             description="show all custom emoji in the server",
+             usage="!emojis")
+    async def list_custom_emojis(self, message: discord.Message, *_):
+        server = message.server  # type: discord.Server
+        channel = message.channel
+        user = message.author
+
+        body = ""
+        for n, emoji in enumerate(sorted(server.emojis, key=lambda e: int(e.id))):
+            c = ':' if emoji.require_colons else ''
+            temp = "{emoji} `{c}{emoji.name}{c}`".format(emoji=emoji, c=c)
+            if len(body) + len(temp) <= 1800:
+                body += temp
+                body += "  |  "  if  (n+1) % 4 else "\n"
+            else:
+                break
+
+        await self.client.send_message(
+            channel,
+            "Emojis in {}:\n".format(server.name) + body
         )
 
 def top_role(member: discord.Member, everyone: bool = False):
