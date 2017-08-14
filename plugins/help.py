@@ -24,7 +24,7 @@ class Help(Plugin):
         user = message.author  # type: discord.Member
 
         body = "Use `?help <topic>` to find specific help.\n\n"
-        for plugin in await self.client.plugin_manager.get_all(server):
+        for plugin in sorted(await self.client.plugin_manager.get_all(server), key=lambda p: p.__class__.__name__):
             body += "**{plugin.__class__.__name__}**: {plugin.plugin_name}\n".format(plugin=plugin)
 
         embed = discord.Embed(
@@ -55,7 +55,7 @@ class Help(Plugin):
             )
             return
 
-        for command_name, func in plugin.commands.items():
+        for command_name, func in sorted(plugin.commands.items(), key=lambda f: f[1].info.get('name', f[0])):
             cmd = func.info.get('name', command_name)
             description = func.info.get('description', 'No description')
             body += "`{cmd}`: {desc}\n".format(cmd=cmd, desc=description)
