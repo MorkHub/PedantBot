@@ -1,9 +1,10 @@
-# from util import *
+from util import *
 import logging
 
 from classes.server import Server
 from classes.channel import Channel
 from classes.user import User
+from classes.role import Role
 from classes.embed import Embed
 from classes.message import Message
 from classes.plugin import Plugin
@@ -23,24 +24,35 @@ class Test(Plugin):
              description="get test data",
              usage='!test <something> <something>')
     async def list_args(self, message: discord.Message, args: tuple):
-        channel = message.channel
-        user = message.author
+        server = message.server  # type: discord.Server
+        channel = message.channel  # type: discord.Channel
+        user = message.author  # type: discord.Member
+
+        content = message.content
+        for chan in message.channel_mentions:
+            mention = re.escape(chan.mention)
+            content = re.sub(r' ?{}'.format(mention), chan.name, content)
+
+        body = "__Message data__\n```py\n".format(user.name)
+        body += "user = '@{}'\n".format(user)
+        body += "channel = '#{}'\n".format(channel)
+        body += "server = '{}'\n".format(server)
+        body += "raw = '{}'\n".format(message.content)
+        if args:
+            body += "args = {}\n".format(args)
+        if message.mentions:
+            body += "mentions = {}\n".format(tuple(User(member) for member in message.mentions))
+        if message.channel_mentions:
+            body += "channel_mentions = {}\n".format(tuple(Channel(chan) for chan in message.channel_mentions))
+        if message.embeds:
+            body += "embeds = {}\n".format(message.embeds)
+        body += "dict = {}\n".format(Message(message).to_dict(True))
+
+        body += "```"
 
         await self.client.send_message(
             channel,
-            "**{user}** message data: ```py\nraw = '{message}'\n" \
-            "args = {args}\n" \
-            "mentions = {mentions}\n" \
-            "channel_mentions = {c_mentions}\n" \
-            "msg = {dict}```".format(
-                user=user,
-                message=message.content,
-                channel=channel,
-                mentions=tuple(User(member) for member in message.mentions),
-                c_mentions=tuple(Channel(chan) for chan in message.channel_mentions),
-                args=args,
-                dict=Message(message).to_dict(True)
-            )
+            body
         )
 
     @command(pattern="^!pm ([0-9]+) (.*)$",
@@ -99,8 +111,13 @@ class Test(Plugin):
         channel = message.channel
         user = message.author
 
-        name = args[0] if args[0] else user.name
-        user = discord.utils.find(lambda u: u.name == name, server.members)
+        target = await get_object(
+            self.client,
+            args[0],
+            message,
+            types=(discord.Member,)
+        ) if args[0] else user
+
         if not user:
             return
 
