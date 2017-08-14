@@ -7,6 +7,7 @@ from util import redis_address
 from plugins.admin import Admin
 from plugins.commands import Commands
 from plugins.define import Define
+from plugins.fun import Fun
 from plugins.help import Help
 from plugins.info import Info
 from plugins.levels import Levels
