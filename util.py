@@ -358,10 +358,11 @@ def roll_dice(inp: str = "") -> list:
     return rolls
 
 
-def find_match(haystack, needle):
+def find_match(haystack, needle: str = "", match_case=False):
     needle_words = needle.split()
     for item in haystack:
-        if item == needle:
+        if item == needle or \
+                match_case is True and item.lower() == needle.lower():
             return (item, ())
 
         args = []
@@ -374,12 +375,17 @@ def find_match(haystack, needle):
                 haystack_words[i] = needle_words[i]
                 args.append(needle_words[i])
 
-        if haystack_words == needle_words:
+        if haystack_words == needle_words or \
+                match_case is False and ' '.join(haystack_words).lower() == ' '.join(needle_words).lower():
             return (item, tuple(args))
     return (False, ())
 
+try:
+    from bot import VERSION
+except ImportError:
+    VERSION = '3.0'
 
-HTTP_HEADERS = {'User-Agent': 'PedantBot v3.0'}
+HTTP_HEADERS = {'User-Agent': 'PedantBot v{}'.format(VERSION)}
 
 
 def get(url):
@@ -475,30 +481,29 @@ async def get_last_image(channel, client):
             return None
 
 
-def search(term, iterable, similar: bool = False):
+def search(term, iterable, similar: bool = False, attr: str = 'name'):
     if similar:
         needle = ".*{}.*".format(re.escape(term))
-        log.info("/{}/".format(needle))
 
     def case_sensitive(item):
-        this = item.name if hasattr(item, 'name') else str(item)
+        this = getattr(item, attr) if hasattr(item, attr) else str(item)
         if similar:
-            return re.match(needle, this)
+            return re.match(needle, str(this))
         else:
             return this == term
 
     def case_insensitive(item):
-        this = item.name if hasattr(item, 'name') else str(item)
+        this = getattr(item, attr) if hasattr(item, attr) else str(item)
         if similar:
-            return re.match(needle.lower(), this.lower())
+            return re.match(needle.lower(), str(this).lower()) is not None
         else:
-            return this.lower() == term.lower()
+            return str(this).lower() == term.lower()
 
     return discord.utils.find(case_sensitive, iterable) or \
            discord.utils.find(case_insensitive, iterable)
 
 
-async def get_object(cln, name, message: discord.Message = None, similar: bool = False,
+async def get_object(cln: discord.Client, name: str, message: discord.Message = None, similar: bool = False,
                      types: tuple = (discord.Member, discord.Role, discord.Channel, discord.Server)):
     target = None
     if message and name == 'me' and discord.Member in types:
@@ -513,10 +518,19 @@ async def get_object(cln, name, message: discord.Message = None, similar: bool =
         return message.channel_mentions[0]
     elif name:
         if discord.Member in types:
-            target = search(name, message.server.members, similar=similar)
+            haystack = sorted(message.server.members, key=lambda m: -m.top_role.position)
+            target = search(name, haystack, similar=similar) or \
+                     search(name, haystack, similar=similar, attr='nick') or \
+                     search(name, haystack, similar=similar, attr='id')
+
         if target is None and discord.Channel in types:
-            target = search(name, message.server.channels, similar=similar)
+            haystack = sorted(message.server.channels, key=lambda c: c.position)
+            target = search(name, haystack, similar=similar) or \
+                     search(name, haystack, similar=similar, attr='id')
+
         if target is None and discord.Role in types:
-            target = search(name, message.server.roles, similar=similar)
+            haystack = sorted(message.server.roles, key=lambda r: r.position)
+            target = search(name, haystack, similar=similar) or \
+                     search(name, haystack, similar=similar, attr='id')
 
     return target
