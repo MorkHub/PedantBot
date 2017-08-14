@@ -31,8 +31,8 @@ def command(pattern: str = "", db_name: str = None, description: str = "", usage
 
             storage = await self.get_storage(server)
 
-            channel_disabled = await storage.get("channel_disabled:{}".format(message.channel.id))
-            if channel_disabled == "1":
+            disabled_channels = await storage.smembers("channel_disabled:{}".format(db_name)) or {}
+            if message.channel.id in disabled_channels:
                 return
 
             if wrapper.nsfw and "nsfw" not in channel.name or \
@@ -72,7 +72,7 @@ def command(pattern: str = "", db_name: str = None, description: str = "", usage
                 message.author.name,
                 message.author.discriminator,
                 message.server.name,
-                truncate(message.clean_content, 100)
+                truncate(message.clean_content.replace('\n', r'\n'), 100)
             ))
 
             await func(self, message, args)
