@@ -12,7 +12,7 @@ log = logging.getLogger('pedantbot')
 
 class Time(Plugin):
     plugin_name = "user timezone storage"
-    required = False
+    required = True
     owner_manage = True
 
     def __init__(self, *args, **kwargs):
@@ -43,17 +43,12 @@ class Time(Plugin):
 
     @staticmethod
     def check_timezone(timezone):
+        timezone = search(timezone, pytz.all_timezones)
+
         if not timezone:
             return False
 
-        if timezone not in pytz.all_timezones:
-            return False
-
-        try:
-            tz = pytz.timezone(timezone)
-        except pytz.exceptions.UnknownTimeZoneError:
-            return False
-
+        tz = pytz.timezone(timezone)
         return tz
 
     @command(pattern="^@time(?: (.*))?$",
@@ -64,12 +59,12 @@ class Time(Plugin):
         channel = message.channel  # type: discord.Channel
         user = message.author  # type: discord.Member
 
-        if len(message.mentions) > 0:
-            target = message.mentions[0]
-        elif args[0]:
-            target = server.get_member_named(args[0])
-        else:
-            target = user
+        target = await get_object(
+            self.client,
+            args[0],
+            message,
+            types=(discord.Member,)
+        ) if args[0] else user
 
         if not target:
             await self.client.send_message(
