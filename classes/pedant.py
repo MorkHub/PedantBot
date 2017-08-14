@@ -297,10 +297,10 @@ class Pedant(discord.Client):
 
     async def on_server_update(self, before, after):
         for plugin in await self.plugin_manager.get_all(before):
-            self.loop.create_task(plugin.on_server_uppdate(before, after))
+            self.loop.create_task(plugin.on_server_update(before, after))
 
     async def on_server_remove(self, server):
-        log.info('Leaving {} server: {} !'.format(
+        log.info("Leaving {} server: '{}!'".format(
             server.owner.name,
             server.name
         ))
@@ -312,9 +312,11 @@ class Pedant(discord.Client):
         for plugin in await self.plugin_manager.get_all(server):
             self.loop.create_task(plugin.on_server_remove(server))
 
-    async def on_server_role_create(self, server, role):
+    async def on_server_role_create(self, role):
+        server = role.server
+
         for plugin in await self.plugin_manager.get_all(server):
-            self.loop.create_task(plugin.on_server_role_create(server, role))
+            self.loop.create_task(plugin.on_server_role_create(role))
 
     async def on_server_role_delete(self, role):
         server = role.server
