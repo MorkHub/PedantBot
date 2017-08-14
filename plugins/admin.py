@@ -1,10 +1,7 @@
-# from storage import Storage
-# import asyncio
-# import discord
-import json
-import logging
 import uuid
+import json
 
+from plugins.time import Time
 from classes.plugin import Plugin
 from decorators import *
 from util import *
@@ -30,9 +27,8 @@ class Admin(Plugin):
         channel = message.channel  # type: discord.Channel
         user = message.author  # type: discord.Member
 
-        app = await self.client.application_info()  # type: discord.AppInfo
         owners = await self.db.redis.smembers('owners') or {}
-        if not user.id in owners:
+        if user.id not in owners:
             await self.client.send_message(
                 channel,
                 "{user.mention}, you do not have permission to set bot status.\n"
@@ -46,26 +42,23 @@ class Admin(Plugin):
         current = server.me.game
         if text is current or (hasattr(current, 'name') and current.name == text):
             msg = "Status not changed."
-            status = None
+            return
         elif text:
-            status = discord.Game(name=text)
             msg = "Updated status: {}".format(text)
         else:
-            status = discord.Game()
             msg = "Cleared status."
 
-        if status:
-            await self.client.change_presence(game=status)
-
+        await self.client.change_presence(game=discord.Game(name=text))
         await self.client.send_message(
             channel,
             msg
         )
 
     # Warnings & Bans
-    @command(pattern='\.warn ([^ ]*)(?: (.*))?',
+    @command(pattern='^\.warn (.*) for (.*)$',
              description="warn a user, optionally provide a reason",
-             usage=".warn <user> [reason]")
+             usage=".warn <user> for [reason]",
+             requires_permissions="ban_members")
     async def warn_user(self, message: discord.Message, args: tuple):
         server = message.server  # type: discord.Server
         channel = message.channel
@@ -81,15 +74,16 @@ class Admin(Plugin):
             )
             return
 
-        reason = args[1]
-        target = None
-        if len(message.mentions) > 0:
-            target = message.mentions[0]
+        await self.client.send_typing(channel)
 
-        if not target or not isinstance(user, discord.Member):
-            target = server.get_member_named(args[0])
-            if not target:
-                target = server.get_member(args[0])
+        reason = args[1]
+        target = await get_object(
+            self.client,
+            args[0],
+            message,
+            types=(discord.Member,),
+            similar=True
+        )
 
         if not target or not isinstance(user, discord.Member):
             await self.client.send_message(
@@ -109,18 +103,17 @@ class Admin(Plugin):
         warning_json = json.dumps(this_warning)
 
         storage = await self.get_storage(server)
-        warnings = await storage.smembers('warnings:{}'.format(target.id))
+        warnings = await storage.lrange('warnings:{}'.format(target.id), 0, -1)
         thresholds = await storage.get('thresholds') or '{"kick":3,"ban":5}'
         thresholds = json.loads(thresholds)
 
         warn_count = 0
-        for i in warnings:
-            warning = await storage.get('warning:{}'.format(i))
-            if warning is None:
+        for warning_json in warnings:
+            if warning_json is None:
                 continue
 
-            warning = json.loads(warning)
-            if not warning.get('cancelled', False):
+            warning = json.loads(warning_json or "null")
+            if warning.get('cancelled', False) is False:
                 warn_count += 1
 
         if warn_count+1 >= thresholds.get('ban', 5):
@@ -159,10 +152,10 @@ class Admin(Plugin):
         if not res:
             return
 
+        await self.client.send_typing(channel)
+
         if res.content.lower() == 'y':
-            added = await storage.set('warning:{}'.format(this_warning.get('id')), warning_json)
-            if added:
-                added = await storage.sadd('warnings:{}'.format(target.id), this_warning.get('id'))
+            added = await storage.rpush('warnings:{}'.format(target.id), json.dumps(this_warning))
             if not added:
                 await self.client.send_message(
                     channel,
@@ -185,17 +178,26 @@ class Admin(Plugin):
                 if func:
                     await func(target)
                 private = await self.client.start_private_message(target)
-                await self.client.send_message(
+                msg = await self.client.send_message(
                     private,
-                    "You have been {action} from {server} for: `{reason}`".format(
-                        user=target,
-                        server=server,
-                        reason=reason or "-",
+                    "You have been **{action}** from __{server}__ for: `{reason}`".format(
+                        user=clean_string(target.name),
+                        server=clean_string(server.name),
+                        reason=clean_string(reason or "-"),
                         action=action+suffix
                     )
                 )
             except discord.Forbidden as e:
-                log.exception(e)
+                if 'private' not in locals():
+                    await self.client.send_message(
+                        channel,
+                        "**{user}** could not be kicked from {action}: ```\n{reason}```".format(
+                            user=clean_string(target.name),
+                            action=action+suffix,
+                            reason=clean_string(e)
+                        )
+                    )
+                    return
             except discord.HTTPException:
                 pass
 
@@ -215,7 +217,82 @@ class Admin(Plugin):
                 "Cancelled. No action has been taken."
             )
 
-    @command(pattern='\.(?:warns|warnlist)(?: (.*))?',
+    @command(pattern="^\.delwarn ([0-9]+) for (.*)$",
+             description="clear a warning for a user",
+             usage=".delwarn <num> for <user>")
+    async def remove_warning(self, message: discord.Message, args: tuple):
+        server = message.server
+        channel = message.channel
+        user = message.author
+
+        target = await get_object(
+            self.client,
+            args[1],
+            message,
+            types=(discord.Member,)
+        )
+
+        await self.client.send_typing(channel)
+
+        if target is None:
+            await self.client.send_message(
+                channel,
+                "No user found by that name."
+            )
+            return
+
+        storage = await self.get_storage(server)
+        warning_json = await storage.lrange('warnings:{}'.format(target.id), int(args[0]), int(args[0]) + 1)
+
+        if not warning_json:
+            await self.client.send_message(
+                channel,
+                "No warning found at that index."
+            )
+            return
+
+        warning = json.loads(warning_json[0])
+
+        tz = await Time.get_user_timezone(self.client, target.id)
+
+        by = server.get_member(warning['by']) if warning.get('by') else 'UNKNOWN'
+        to = server.get_member(warning['user']) if warning.get('user') else 'UNKNOWN'
+        reason = warning['reason'] if warning.get('reason') else 'UNKNOWN'
+        timestamp = datetime.datetime.fromtimestamp(warning['timestamp'], tz=tz) if warning.get('reason') else 'UNKNOWN'
+
+        res = await confirm_dialog(
+            self.client,
+            channel,
+            user=user,
+            title="Clear this warning?",
+            description="This will clear the following warning:\n"
+                        "```FROM: {}\n"
+                        "TO: {}\n"
+                        "DATE: {}\n"
+                        "REASON: {}```".format(
+                            by,
+                            to,
+                            timestamp.strftime(DATETIME_FORMAT),
+                            reason
+                        ),
+            colour=discord.Colour.red()
+        )
+
+        if res is None or res.content.lower() == "n":
+            return
+
+        await self.client.send_typing(channel)
+
+        warning['cancelled'] = True
+
+        deleted = await storage.lset(('warnings:{}'.format(target.id)), int(args[0]), json.dumps(warning))
+        if deleted:
+            await self.client.send_message(
+                channel,
+                "Warning Cleared"
+            )
+
+    @command(pattern='^\.(?:warns|warnlist)(?: (.*))?$',
              description="list warnings for user or self",
              usage='.warnlist <user>')
     async def list_warnings(self, message: discord.Message, args: tuple):
@@ -223,17 +300,21 @@ class Admin(Plugin):
         channel = message.channel
         user = message.author
 
-        target = None
-        if len(message.mentions) > 0:
-            target = message.mentions[0]
+        target = await get_object(
+            self.client,
+            args[0],
+            message,
+            types=(discord.Member,)
+        ) if args[0] else user
 
-        if (not target or not isinstance(user, discord.Member)) and args[0]:
-            target = server.get_member_named(args[0])
-            if not target:
-                target = server.get_member(args[0])
+        await self.client.send_typing(channel)
 
-        if not args[0]:
-            target = user
+        if target is None:
+            await self.client.send_message(
+                channel,
+                "No user found by that name"
+            )
+            return
 
         if not (target == user or has_permission(user, "ban_members")):
             await self.client.send_message(
@@ -251,18 +332,22 @@ class Admin(Plugin):
             return
 
         storage = await self.get_storage(server)
-        warnings = await storage.smembers('warnings:{}'.format(target.id))
+        warnings_raw = await storage.lrange('warnings:{}'.format(target.id), 0, -1)
+        warnings = []
+
         thresholds = await storage.get('thresholds') or '{"kick":3,"ban":5}'
         thresholds = json.loads(thresholds)
 
         warn_count = 0
-        for i in warnings:
-            warning = await storage.get('warning:{}'.format(i))
+        for warning_json in warnings_raw:
+            warning = json.loads(warning_json or "null")
             if warning is None:
                 continue
-            warning = json.loads(warning)
+
             if not warning.get('cancelled', False):
                 warn_count += 1
+
+            warnings.append(warning)
 
         if warn_count + 1 >= thresholds.get('ban', 5):
             action = "ban"
@@ -272,24 +357,16 @@ class Admin(Plugin):
             action = "written warning only"
 
         body = ''
-        for n, warning_id in enumerate(warnings):
-            warning_json = await storage.get('warning:{}'.format(warning_id))
-            try:
-                warning = json.loads(str(warning_json))
-            except Exception as e:
-                log.exception(e)
-
-            if not warning:
-                continue
-
+        for n, warning in enumerate(warnings):
             time_string = str(
                 datetime.datetime.utcfromtimestamp(float(warning.get('timestamp'))).strftime(DATETIME_FORMAT)
             )
-            body += "__#{i}__ [`{time}`]: *`{reason:.100}`* by {by}\n".format(
+            body += "{s}__#{i}__ [`{time}`] for  *`{reason:.100}`* by {by}{s}\n".format(
                 i=n,
                 time=time_string,
                 reason=str(warning.get('reason')) or "-",
-                by=server.get_member(warning.get('by')) or server.name
+                by=server.get_member(warning.get('by')) or server.name,
+                s="~~" if warning.get('cancelled') else ''
             )
 
         embed = discord.Embed(
@@ -297,7 +374,8 @@ class Admin(Plugin):
                 user=target,
                 server=server
             ),
-            description=body
+            description=body,
+            colour=discord.Colour.orange()
         )
         embed.add_field(
             name="Next warning penalty",
@@ -312,13 +390,13 @@ class Admin(Plugin):
             embed=embed
         )
 
-    @command(pattern='\.threshold (kick|ban) ([0-9]+)',
+    @command(pattern='^\.warn threshold (kick|ban) ([0-9]+)$',
              description="set the warning threshold for kick/ban",
-             usage=".threshold <kick|ban> <# of warnings>")
+             usage=".warn threshold <kick|ban> <# of warnings>")
     async def set_threshold(self, message: discord.Message, args: tuple):
         server = message.server
         channel = message.channel
-        user = message.channel
+        user = message.author
 
         if not has_permission(user, "manage_server"):
             await self.client.send_message(
@@ -327,6 +405,8 @@ class Admin(Plugin):
                 "Requires `manage_server`.".format(user=user)
             )
             return
+
+        await self.client.send_typing(channel)
 
         storage = await self.get_storage(server)
         thresholds = await storage.get('thresholds') or '{"kick":3,"ban":5}'
@@ -355,12 +435,14 @@ class Admin(Plugin):
                 "Threshold for `{}` could not be changed.".format(action)
             )
 
-    @command(pattern="\.threshold",
+    @command(pattern="^\.warn threshold$",
              description="view the current warning threshold for kick/ban",
-             usage=".threshold")
-    async def view_thresholds(self, message: discord.Message):
+             usage=".warn threshold")
+    async def view_thresholds(self, message: discord.Message, *_):
         server = message.server
         channel = message.channel
+
+        await self.client.send_typing(channel)
 
         storage = await self.get_storage(server)
         thresholds = await storage.get('thresholds') or '{"kick":3,"ban":5}'
@@ -368,7 +450,8 @@ class Admin(Plugin):
 
         embed = discord.Embed(
             title="Warning thresholds for {}".format(server),
-            description="**Kick**: `{0[kick]}`\n**Ban**: `{0[ban]}`".format(thresholds)
+            description="**Kick**: `{0[kick]}`\n**Ban**: `{0[ban]}`".format(thresholds),
+            colour=discord.Colour.orange()
         )
         await self.client.send_message(
             channel,
@@ -376,23 +459,22 @@ class Admin(Plugin):
         )
         return
 
-    @command(pattern='\.kick ([^]+) ([^"]*)',
+    @command(pattern='^\.kick (.+) (?:for (.*))?$',
              description="kick user from the current server",
-             usage=".kick <user> [reason]")
+             usage=".kick <user> [for <reason>]")
     async def kick_user(self, message: discord.Message, args: tuple):
         server = message.server  # type: discord.Server
         channel = message.channel  # type: discord.Channel
         user = message.author  # type: discord.Member
 
-        target = None  # type: discord.Member
-        reason = None
-        if len(message.mentions) > 0:
-            target = message.mentions[0]
+        target = await get_object(
+            self.client,
+            args[0],
+            message,
+            types=(discord.Member,)
+        )
 
-        if len(args) > 0:
-            target = server.get_member_named(args[0])
-            if not target:
-                target = server.get_member(args[0])
+        await self.client.send_typing(channel)
 
         if not target:
             await self.client.send_message(
@@ -402,7 +484,9 @@ class Admin(Plugin):
             return
 
         if len(args) > 1:
-            reason = args[1]
+            reason = args[1] or None
+        else:
+            reason = None
 
         if not target == server.owner and target.top_role.position >= user.top_role.position:
             await self.client.send_message(
@@ -438,7 +522,9 @@ class Admin(Plugin):
 
         if not res:
             return
-        
+
+        await self.client.send_typing(channel)
+
         if res.content.lower() == 'y':
             kicked = None
             try:
@@ -500,6 +586,7 @@ class Admin(Plugin):
             )
             return
 
+        await self.client.send_typing(channel)
         bans = await self.client.get_bans(server)
 
         body = ''
@@ -508,8 +595,8 @@ class Admin(Plugin):
 
         embed = discord.Embed(
             title="Banned users in {0.name}".format(server),
-            color=discord.Color.red(),
-            description=body
+            description=body,
+            color=discord.Color.red()
         )
 
         await self.client.send_message(
@@ -517,18 +604,15 @@ class Admin(Plugin):
             embed=embed
         )
 
-    @command(pattern="\.clean ([0-9]*)",
+    @command(pattern="^\.clean ([0-9]*)$",
              description="clean up bot messages",
-             usage=".clean 100")
+             usage=".clean <max # of messages>")
     async def clean_channel(self, message: discord.Message, args: tuple):
-        server = message.server  # type: discord.Server
         channel = message.channel  # type: discord.Channel
-        user = message.author  # type: discord.Member
 
         limit = 20
-        if len(args) > 0:
-            if args[0].isnumeric():
-                limit = int(args[0])
+        if args[0] and args[0].isnumeric():
+            limit = int(args[0])
 
         if not 0 < limit <= 200:
             limit = 20
@@ -539,13 +623,14 @@ class Admin(Plugin):
             limit=limit
         )
 
-    @command(pattern="^\.purge ([0-9]+) ?(.*)$",
+    @command(pattern="^\.purge ([0-9]+)(?: from (.*))?$",
              description="purge messages from channel",
-             usage=".purge <amount> [user]")
+             usage=".purge <max # of messages> [from <user>]")
     async def purge_channel(self, message: discord.Message, args: tuple):
-        server = message.server  # type: discord.Server
         channel = message.channel  # type: discord.Channel
         user = message.author  # type: discord.Member
+
+        await self.client.send_typing(channel)
 
         limit = 20
         if len(args) > 0:
@@ -556,17 +641,21 @@ class Admin(Plugin):
             limit = 20
 
         target = None
-        if message.mentions:
-            target = message.mentions[0]
-        elif args[1]:
+        if args[1]:
             if args[1] == "bots":
                 target = "bots"
             else:
-                target = server.get_member_named(args[1])
-            if not target:
+                target = await get_object(
+                    self.client,
+                    args[1],
+                    message,
+                    types=(discord.Member, discord.Role)
+                )
+
+            if target is None:
                 await self.client.send_message(
                     channel,
-                    "No user found by that name."
+                    "No user/role found by that name."
                 )
                 return
 
@@ -581,12 +670,15 @@ class Admin(Plugin):
             return
 
         if not target:
-            check = lambda m: True
+            def check(*_): return True
         elif target == "bots":
-            check = lambda m: m.author.bot
+            def check(m): return m.author.bot
+        elif isinstance(target, discord.Role):
+            def check(m): return target in m.author.roles
         else:
-            check = lambda m: m.author == target
+            def check(m): return m.author == target
 
+        deleted = 0
         try:
             deleted = await self.client.purge_from(
                 channel,
@@ -597,9 +689,10 @@ class Admin(Plugin):
 
         except Exception as e:
             log.exception(e)
-            deleted = 0
+            if not deleted:
+                deleted = 0
 
-        await self.client.send_message(
+        msg = await self.client.send_message(
             channel,
             "Deleted `{:,}` messages in {}.".format(
                 int(deleted),
@@ -607,13 +700,21 @@ class Admin(Plugin):
             )
         )
 
-    @command(pattern="^\.iam add ([^:]+)(?:\:(.+))?$",
+        await asyncio.sleep(10)
+        try:
+            await self.client.delete_message(msg)
+        except discord.HTTPException:
+            pass
+
+    @command(pattern="^\.iam add (.+?)(?: as (.*))?$",
              description="define self-assignable role",
-             usage=".iam add <role>")
+             usage=".iam add <role> [as <name>]")
     async def add_iam_role(self, message: discord.Message, args: tuple):
         server = message.server
         channel = message.channel
         user = message.author
+
+        log.info(args)
 
         if not has_permission(user, "manage_roles"):
             await self.client.send_message(
@@ -623,41 +724,63 @@ class Admin(Plugin):
             )
             return
 
-        role = None
-        if args[0]:
-            role = discord.utils.get(server.roles, name=args[0])  # type: discord.Role
+        role = await get_object(
+            self.client,
+            args[0],
+            message,
+            types=(discord.Role,)
+        )
+
+        reserved = ['add', 'del', 'list', 'not']
+        if args[0] in reserved and not args[0] or \
+                args[1] in reserved:
+            await self.client.send_message(
+                channel,
+                "Could not add iam role: `name reserved`"
+            )
+            return
 
         if not role:
             await self.client.send_message(
                 channel,
-                "No role found by that name."
+                "Could not add iam role: `role not found`"
             )
             return
 
         if role.position >= user.top_role.position and not has_permission(user, 'administrator'):
             await self.client.send_message(
                 channel,
-                "You may not set a role above/equal to your own as self-assignable without `administrator` permission."
+                "{user.mention}, You do not have permission to add that role as an iam role.\n"
+                "Requires `administrator`, or `{role}` or above.".format(user=user, role=role)
             )
             return
 
-        if len(args) > 1:
-            name = args[1] or role
+        if args[1]:
+            name = args[1].strip() or role.name
         else:
-            name = role
+            name = role.name
 
         storage = await self.get_storage(server)
+
+        exists = await storage.get('iam_id:{}'.format(name))
+        if exists:
+            await self.client.send_message(
+                channel,
+                "Could not add iam role: `already exists`"
+            )
+            return
+
         added = await storage.set('iam_id:{}'.format(name), role.id)
 
         if added:
             await storage.sadd('iam_roles', name)
             msg = "{role} has been set as a self-assignable role, under the name `{name}`.\n" \
                 "User `.iam {name}` to use.".format(
-                role=role,
-                name=name
-            )
+                    role=role,
+                    name=name
+                )
         else:
-            msg = "Could not add role."
+            msg = "Could not add role: `unknown error`"
 
         await self.client.send_message(
             channel,
@@ -671,8 +794,6 @@ class Admin(Plugin):
         server = message.server
         channel = message.channel
         user = message.author
-
-        log.info(args)
 
         if not has_permission(user, "manage_roles"):
             await self.client.send_message(
@@ -732,10 +853,13 @@ class Admin(Plugin):
         if role not in user.roles:
             await self.client.add_roles(user, role)
 
-            await self.client.send_message(
+            msg = await self.client.send_message(
                 channel,
-                "You have been granted the role `{}`".format(role)
+                "{} has been granted the role `{}`".format(clean_string(user.name), role)
             )
+
+            await asyncio.sleep(5)
+            await self.client.delete_message(msg)
 
     @command(pattern="^\.iam not (.+)$",
              description="remove self-assignable role from yourself",
@@ -762,6 +886,14 @@ class Admin(Plugin):
         if role in user.roles:
             await self.client.remove_roles(user, role)
 
+            msg = await self.client.send_message(
+                channel,
+                "{} has removed their role `{}`".format(clean_string(user.name), role)
+            )
+
+            await asyncio.sleep(5)
+            await self.client.delete_message(msg)
+
     @command(pattern="^\.iam list$",
              description="view self-assignable roles",
              usage=".iam list")
@@ -780,9 +912,14 @@ class Admin(Plugin):
 
         storage = await self.get_storage(server)
         items = await storage.smembers('iam_roles')
+        server_roles = [role.id for role in server.roles]
 
         body = "```yaml\n.iam <name> # give yourself a role```"
         for iam in items:
+            role_id = await storage.get('iam_id:{}'.format(iam))
+            if role_id not in server_roles:
+                continue
+
             body += "• {}\n".format(iam)
 
         embed = discord.Embed(
@@ -805,7 +942,8 @@ class Admin(Plugin):
                 server=server,
                 members=len(server.members),
                 roles=len(server.roles)
-            )
+            ),
+            colour=discord.Colour.green()
         )
 
         channels = ""
@@ -862,7 +1000,6 @@ class Admin(Plugin):
                 name=clean_string(role.name)
             )
 
-
         embed.add_field(
             name="Roles ({}/{} shown)".format(
                 displayed,
@@ -886,128 +1023,66 @@ class Admin(Plugin):
             icon_url="https://cdn.discordapp.com/icons/{}/{}.png".format(server.id, server.icon)
         )
 
+        user = None
         for user_id in ['154542529591771136']:
             try:
                 user = await self.client.get_user_info(user_id)
                 await self.client.send_message(user, 'Added to {server}'.format(server=server), embed=embed)
             except discord.HTTPException as e:
                 log.exception(e)
-                if user:
+                if user is not None:
                     await self.client.send_message(user, 'Added to {server.owner}\'s `{server}`'.format(server=server))
 
-    @command(pattern="^\.pair$",
-             description="start a pairing request with another server",
-             usage=".pair")
-    async def start_pairing(self, message: discord.Message, *_):
+    @command(pattern="^\.who(?:has|can) (.*?)(?: in (.*))?$",
+             description="find out which users have a specific permission",
+             usage=".whohas <permission> [in <channel>]")
+    async def members_with_permission(self, message: discord.Message, args: tuple):
         server = message.server
         channel = message.channel
         user = message.author
 
-        if not has_permission(user, "manage_server"):
+        permission_names = [x[0] for x in discord.Permissions()]
+        permission = search(args[0].replace(' ', '_'), permission_names)
+        log.info(permission_names)
+        if permission is None:
             await self.client.send_message(
                 channel,
-                "{user.mention}, you do not have permission to modify server settings.\n"
-                "Requires `manage_server`.".format(
-                    user=user
-                )
+                "No permission found by that name."
             )
             return
 
-        token = await self.client.db.redis.get('Admin.global:pairing_key:{}'.format(server.id))
-        if not token:
-            import hashlib, os
-            token = hashlib.sha1(os.urandom(128)).hexdigest()
-            saved = await self.client.db.redis.set('Admin.global:pairing_key:{}'.format(server.id), token, expire=240)
-            if saved:
-                await self.client.db.redis.set('Admin.global:pairing_server:{}'.format(token), server.id)
-            else:
-                return
+        if len(args) == 2 and args[1]:
+            chan = await get_object(
+                self.client,
+                args[1].replace(' ', '_'),
+                message,
+                types=(discord.Channel,)
+            )
+            check = lambda m: has_permission(m.permissions_in(chan), permission)
+            location = chan
+        else:
+            check = lambda m: has_permission(m, permission)
+            location = server
+
+        try:
+            granted_members = filter(check, server.members)
+        except discord.Forbidden:
+            await self.client.send_message(
+                channel,
+                "I do not have permission to view that channel."
+            )
+            return
+
+        body = "Members who have `{}` granted in {}:\n`".format(
+            permission,
+            location.mention if isinstance(location, discord.Channel) else location.name
+        )
+
+        body += '`, `'.join([
+            clean_string(member.name) for member in sorted(granted_members, key=lambda m: -m.top_role.position)
+        ])
 
         await self.client.send_message(
             channel,
-            "Your pairing key is below. Use `.pair <key>` in another server to pair.\n"
-            "```\n{}```".format(token)
+            truncate(body, 1800) + '`'
         )
-
-    @command(pattern="^\.pair (.+)$",
-             description="complete a pairing request",
-             usage=".pair <key>")
-    async def complete_pairing(self, message: discord.Message, args):
-        server = message.server
-        channel = message.channel
-        user = message.author
-
-        if len(args[0]) < 40:
-            await self.client.send_message(
-                channel,
-                "Invalid pairing key. Valid pairing keys are 40 characters long.\n"
-            )
-            return
-
-        if not has_permission(user, "manage_server"):
-            await self.client.send_message(
-                channel,
-                "{user.mention}, you do not have permission to modify server settings.\n"
-                "Requires `manage_server`.".format(
-                    user=user
-                )
-            )
-            return
-
-        server_id = await self.client.db.redis.get('Admin.global:pairing_server:{}'.format(args[0]))
-        _server = self.client.get_server(server_id)
-        log.info(_server)
-
-        if not _server:
-            await self.client.send_message(
-                channel,
-                "Pairing key not found. Aborting."
-            )
-
-        paired = await self.client.db.redis.set('Admin.global:paired_server:{}'.format(server.id), _server.id)
-        log.info(paired)
-        if paired:
-            await self.client.db.redis.delete('Admin.global:pairing_key:{}'.format(_server.id))
-            await self.client.db.redis.delete('Admin.global:pairing_server:{}'.format(args[0]))
-
-            await self.client.send_message(
-                channel,
-                "Successfully paired `{}` with `{}`.\n"
-                "Configuration is now synchronised.".format(
-                    clean_string(server.name),
-                    clean_string(_server.name)
-                )
-            )
-        else:
-            await self.client.send_message(
-                channel,
-                "Pairing failed."
-            )
-
-    @command(pattern="^\.unpair (.+)$",
-             description="unpair server",
-             usage=".unpair")
-    async def complete_pairing(self, message: discord.Message, *_):
-        server = message.server
-        channel = message.channel
-        user = message.author
-
-        if not has_permission(user, "manage_server"):
-            await self.client.send_message(
-                channel,
-                "{user.mention}, you do not have permission to modify server settings.\n"
-                "Requires `manage_server`.".format(
-                    user=user
-                )
-            )
-            return
-
-        paired = await self.client.db.redis.get('Admin.global:paired_server:{}'.format(server_id))
-        if not paired:
-            await self.client.send_message(
-                channel,
-                "`{}` is not currently paired to any server."
-            )
-            return
-
-        res = confirm_dialog()
