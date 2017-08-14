@@ -51,7 +51,7 @@ class Commands(Plugin):
         storage = await self.get_storage(server)
         commands = await storage.smembers('commands')
 
-        trigger, args = find_match(commands, message.content.lower())
+        trigger, args = find_match(commands, message.content)
 
         if trigger:
             template = await storage.get('command:{}'.format(trigger))
@@ -157,7 +157,7 @@ class Commands(Plugin):
 
     @command(pattern='!dcr ([0-9]+)',
              description="delete a custom reaction",
-             usage="!dcr <#ID>")
+             usage="!dcr <ID>")
     async def delete_command(self, message: discord.Message, args: tuple):
         """
         :param message: discord.Message
