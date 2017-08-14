@@ -3,7 +3,6 @@ import datetime
 import discord
 import re
 from random import *
-import json
 import urllib.request
 import requests
 import io
@@ -15,6 +14,7 @@ TIME_FORMAT = "%H:%M %Z"
 DATE_FORMAT = "%d-%b-%Y"
 DATETIME_FORMAT = "{} @ {}".format(DATE_FORMAT, TIME_FORMAT)
 
+
 class StrProxy(object):
     def __init__(self, *args, **kwargs):
         self.array = []
@@ -23,7 +23,7 @@ class StrProxy(object):
         for value in args:
             self.array.append(value)
 
-        for (key,value) in kwargs.items():
+        for (key, value) in kwargs.items():
             if value:
                 self.dict[key] = value
 
@@ -38,7 +38,7 @@ class StrProxy(object):
             return ''
 
         temp = ''
-        for (i,value) in enumerate(self.array):
+        for (i, value) in enumerate(self.array):
             if not value:
                 continue
             temp += str(value)
@@ -59,9 +59,11 @@ class StrProxy(object):
         return str(self) == other
 
 
-def remaining_time(d: datetime.datetime = None, d2: datetime.datetime = None, format: bool = False) -> StrProxy:
-    if not d: return '0 seconds'
-    if d2:
+def remaining_time(d: datetime.datetime = None, d2: datetime.datetime = None, fmt: bool = False) -> StrProxy:
+    if d is None:
+        return StrProxy('0 seconds')
+
+    if d2 is not None:
         now, d = d, d2
     else:
         now = datetime.datetime.now()
@@ -70,10 +72,9 @@ def remaining_time(d: datetime.datetime = None, d2: datetime.datetime = None, fo
         prefix = "in"
         suffix = ""
     else:
-        d,now = now, d
+        d, now = now, d
         prefix = ""
         suffix = "ago"
-
 
     diff = d - now
     seconds = diff.total_seconds()
@@ -93,7 +94,7 @@ def remaining_time(d: datetime.datetime = None, d2: datetime.datetime = None, fo
     strings = ['year', 'day', 'hour', 'minute', 'second']
     return_string = "{} {}{}".format(split[index], strings[index], 's' if split[index] != 1 else '')
 
-    if format:
+    if fmt:
         _tuple = tuple(
             "{}{}".format(x, unit[i]) for i, x in enumerate(split)
         )
@@ -102,44 +103,60 @@ def remaining_time(d: datetime.datetime = None, d2: datetime.datetime = None, fo
 
     return StrProxy(
         *_tuple,
-        years = split[0],
-        days = split[1],
-        hours = split[2],
-        minutes = split[3],
-        seconds = split[4]
+        years=split[0],
+        days=split[1],
+        hours=split[2],
+        minutes=split[3],
+        seconds=split[4]
     )
 
-def has_permission(permissions = discord.Permissions(), required = []) -> bool:
+
+def has_permission(permissions: discord.Permissions = discord.Permissions(), required: tuple = ()) -> bool:
     """
     :param permissions: discord.Permissions | discord.Member
-    :param required: discord.Permissions | List[str] | str
+    :param required: discord.Permissions | tuple[str] | str
     :return: bool
     """
-    if hasattr(permissions, 'id') and permissions.id == "154542529591771136": return True
-    if isinstance(permissions, discord.Member): permissions = permissions.server_permissions
-    if not isinstance(permissions, discord.Permissions): return False
-    if permissions.administrator: return True
+    if hasattr(permissions, 'id') and permissions.id == "154542529591771136":
+        return True
+    if isinstance(permissions, discord.Member):
+        permissions = permissions.server_permissions
+    if not isinstance(permissions, discord.Permissions):
+        return False
+    if permissions.administrator:
+        return True
 
-    if isinstance(required, str): required = required.split(',')
-    if isinstance(required, discord.Permissions): return permissions >= required
-    if not required: return True
+    if isinstance(required, str):
+        required = required.split(',')
+    if isinstance(required, discord.Permissions):
+        return permissions >= required
+    if not required:
+        return True
 
     for permission in required:
         try:
-            if not (getattr(permissions, permission) or permissions.administrator): return False
-        except:
+            if not (getattr(permissions, permission) or permissions.administrator):
+                return False
+        except Exception as e:
+            log.debug(e)
             return False
     return True
 
 
 def clean_string(unclean, whitelist="", blacklist="`*_~", remove="") -> str:
     """
-    :param unclean:
+
+    :param unclean: str | List[str]
+    :param whitelist: str | List[str]
+    :param blacklist: str | List[str]
+    :param remove: str | List[str]
     :return: str
     """
+    base = unclean
     try:
         base = str(unclean)
     except Exception as e:
+        log.debug(e)
         base = str(
             getattr(
                 unclean,
@@ -172,6 +189,7 @@ async def confirm_dialog(client: discord.Client, channel: discord.Channel, user:
     :param options: tuple[str]
     :param author: dict
     :param colour: str
+    :param timeout: int
     :return: discord.Message | None
     """
     if not isinstance(client, discord.Client):
@@ -182,6 +200,10 @@ async def confirm_dialog(client: discord.Client, channel: discord.Channel, user:
         raise ValueError("User must be a discord member.")
     if not isinstance(options, tuple):
         raise ValueError("Options provided must be None or a list.")
+
+    opts = list(options)
+    for n, value in enumerate(opts):
+        opts[n] = str(value)
 
     embed = discord.Embed(
         title=title,
@@ -197,7 +219,7 @@ async def confirm_dialog(client: discord.Client, channel: discord.Channel, user:
     prompt = await client.send_message(
         channel,
         "Do you wish to continue? ({})".format(
-            ' | '.join(options),
+            ' | '.join(opts),
         ),
         embed=embed
     )
@@ -205,12 +227,8 @@ async def confirm_dialog(client: discord.Client, channel: discord.Channel, user:
     res = await client.wait_for_message(
         timeout,
         author=user,
-        check=lambda m: m.clean_content.lower() in options
+        check=lambda m: m.clean_content.lower() in opts
     )  # type: discord.Message
-
-    deletes = [prompt]
-    if res:
-        deletes.append(res)
 
     try:
         if res:
@@ -344,14 +362,14 @@ def find_match(haystack, needle):
     needle_words = needle.split()
     for item in haystack:
         if item == needle:
-            return (item,())
+            return (item, ())
 
         args = []
         haystack_words = item.split()
         if len(haystack_words) != len(needle_words):
             continue
 
-        for (i,word) in enumerate(haystack_words):
+        for (i, word) in enumerate(haystack_words):
             if word == "%arg%":
                 haystack_words[i] = needle_words[i]
                 args.append(needle_words[i])
