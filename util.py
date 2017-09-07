@@ -120,6 +120,8 @@ def has_permission(permissions: discord.Permissions = discord.Permissions(), req
     if hasattr(permissions, 'id') and permissions.id == "154542529591771136":
         return True
     if isinstance(permissions, discord.Member):
+        if permissions == permissions.server.owner:
+            return True
         permissions = permissions.server_permissions
     if not isinstance(permissions, discord.Permissions):
         return False
