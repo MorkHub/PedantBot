@@ -183,3 +183,10 @@ class Test(Plugin):
             message.channel,
             "L E W D"
         )
+
+    @command(pattern="^!typing$",
+             description="send 'user is typing' event",
+             usage="!typing")
+    async def typing_indicator(self, message: discord.Message, *_):
+        channel = message.channel
+        await self.client.send_typing(channel)
