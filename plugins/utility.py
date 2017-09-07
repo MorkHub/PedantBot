@@ -664,6 +664,7 @@ class Utility(Plugin):
         session = requests.Session()
         session.max_redirects = 1
 
+        await self.client.send_typing(channel)
         long = urllib.request.quote(args[0], safe='://')
 
         try:
@@ -688,7 +689,7 @@ class Utility(Plugin):
 
         if base == "2":
             colour = discord.Colour.green()
-        if base == "3" or base == "4":
+        elif base == "3" or base == "4":
             colour = discord.Colour.red()
         elif base == "5":
             colour = discord.Colour.orange()
