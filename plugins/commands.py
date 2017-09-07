@@ -117,7 +117,7 @@ class Commands(Plugin):
                 "Reaction saved!"
             )
 
-    @command(pattern='!lcr',
+    @command(pattern='^!lcr$',
              description='list reactions for this server',
              usage='!lcr')
     async def list_reactions(self, message: discord.Message, args: tuple = ()):
@@ -155,7 +155,7 @@ class Commands(Plugin):
             embed=embed
         )
 
-    @command(pattern='!dcr ([0-9]+)',
+    @command(pattern='^!dcr ([0-9]+)$',
              description="delete a custom reaction",
              usage="!dcr <ID>")
     async def delete_command(self, message: discord.Message, args: tuple):
