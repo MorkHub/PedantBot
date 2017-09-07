@@ -31,8 +31,8 @@ def command(pattern: str = "", db_name: str = None, description: str = "", usage
 
             storage = await self.get_storage(server)
 
-            disabled_channels = await storage.smembers("channel_disabled:{}".format(db_name)) or {}
-            if message.channel.id in disabled_channels:
+            disabled_commands = await self.client.db.redis.smembers("channel_disabled:{}".format(channel.id)) or {}
+            if wrapper._db_name in disabled_commands:
                 return
 
             if wrapper.nsfw and "nsfw" not in channel.name or \
@@ -40,14 +40,22 @@ def command(pattern: str = "", db_name: str = None, description: str = "", usage
                 return
 
             if cooldown:
-                check = await storage.get("cooldown:{}:{}".format(db_name or name, message.author))
-                if check:
+                check = await storage.ttl("cooldown:{}:{}".format(db_name or name, message.author))
+                if check > 0:
+                    await self.client.send_message(
+                        channel,
+                        "{}, please wait {} second(s) to use that command again.".format(message.author.mention, check)
+                    )
                     return
                 await storage.set("cooldown:{}:{}".format(db_name or name, message.author), 1, expire=cooldown)
 
             if global_cooldown:
-                check = await storage.get("global_cooldown:{}".format(db_name or name))
-                if check:
+                check = await storage.ttl("global_cooldown:{}".format(db_name or name))
+                if check > 0:
+                    await self.client.send_message(
+                        channel,
+                        "{}, please wait {} second(s) to use that command again.".format(message.author.mention, check)
+                    )
                     return
                 await storage.set("global_cooldown:{}".format(db_name or name), 1, expire=global_cooldown)
 
