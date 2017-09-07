@@ -5,6 +5,7 @@ import numpy
 from random import randint, choice
 from PIL import Image, ImageDraw, ImageFont
 from PIL import GifImagePlugin as gif
+import PIL.ImageOps
 import requests
 from util import  *
 
@@ -89,7 +90,8 @@ class Fun(Plugin):
 
     @command(pattern="^!(?:biggerer|biglyer) (.*)$",
              description="view an even larger version of a custom emoji",
-             usage="!biggerer <emoji>")
+             usage="!biggerer <emoji>",
+             cooldown=3)
     async def even_bigger_emoji(self, message: discord.Message, args: tuple):
         channel = message.channel  # type: discord.Channel
 
@@ -127,9 +129,10 @@ class Fun(Plugin):
 
         os.remove("{}.PNG".format(message.id))
 
-    @command(pattern="^!eval .*$",
+    @command(pattern="^!(?:exec|eval) .*$",
              description="execute python code",
-             usage="!eval <code>")
+             usage="!eval <code>",
+             cooldown=1)
     async def exec_python(self, message: discord.Message, *_):
         await self.client.send_message(
             message.channel,
@@ -138,7 +141,8 @@ class Fun(Plugin):
 
     @command(pattern="^!(?:needsmorejpe?g|jpe?g)(?: (.*))?$",
              description="give an image more jpeg",
-             usage="!needsmorejpeg")
+             usage="!needsmorejpeg",
+             global_cooldown=3)
     async def needs_more_jpeg(self, message: discord.Message, args: tuple):
         server = message.server
         channel = message.channel
@@ -284,7 +288,8 @@ class Fun(Plugin):
 
     @command(pattern="!image bren(?: (.*))?",
              description="make a man think about an image/user/emoji",
-             usage="!image bren [url|username|emoji]")
+             usage="!image bren [url|username|emoji]",
+             global_cooldown=10)
     async def bren_thinking(self, message: discord.Message, args: tuple):
         server = message.server
         channel = message.channel
@@ -349,7 +354,8 @@ class Fun(Plugin):
 
     @command(pattern="!image collage(?: (.*))?",
              description="create an RGB collage from a single image",
-             usage="!image collage [url|username|emoji]")
+             usage="!image collage [url|username|emoji]",
+             global_cooldown=5)
     async def collage_image(self, message: discord.Message, args: tuple):
         server = message.server
         channel = message.channel
@@ -382,7 +388,8 @@ class Fun(Plugin):
 
     @command(pattern="!image rotat[eo] ([0-9]+)(?:deg)?(?: (.*))?",
              description="create an RGB collage from a single image",
-             usage="!image rotate <degrees> [url|username|emoji]")
+             usage="!image rotate <degrees> [url|username|emoji]",
+             global_cooldown=3)
     async def rotate_image(self, message: discord.Message, args: tuple):
         server = message.server
         channel = message.channel
@@ -430,7 +437,8 @@ class Fun(Plugin):
 
     @command(pattern="^!image colou?r ([^ ]*)(?: (.*))?$",
              description="make images different colours",
-             usage="!image colour <colour> [user|url|emoji]")
+             usage="!image colour <colour> [user|url|emoji]",
+             global_cooldown=3)
     async def image_colour(self, message: discord.Message, args: tuple):
         server = message.server
         channel = message.channel
@@ -512,7 +520,8 @@ class Fun(Plugin):
 
     @command(pattern="^!image invert(?: (.*))?$",
              description="invert colour on an image",
-             usage="!image invert [user|url|emoji]")
+             usage="!image invert [user|url|emoji]",
+             global_cooldown=3)
     async def image_invert(self, message: discord.Message, args: tuple):
         server = message.server
         channel = message.channel
@@ -530,17 +539,14 @@ class Fun(Plugin):
 
         fn = self.getfile()
 
-        if img.mode == 'RGBA':
-            r, g, b, a = img.split()
-            rgb_img = Image.merge('RGB', (r, g, b))
-            rgb_invert = PIL.ImageOps.invert(rgb_img)
+        img = img.convert("RGBA")
+        r, g, b, a = img.split()
+        rgb_img = Image.merge('RGB', (r, g, b))
+        rgb_invert = PIL.ImageOps.invert(rgb_img)
 
-            r2, g2, b2 = rgb_invert.split()
-            rgba_invert = Image.merge('RGBA', (r2, g2, b2, a))
-            rgba_invert.save(fn)
-        else:
-            inverted_image = PIL.ImageOps.invert(img)
-            inverted_image.save(fn)
+        r2, g2, b2 = rgb_invert.split()
+        rgba_invert = Image.merge('RGBA', (r2, g2, b2, a))
+        rgba_invert.save(fn)
 
         await self.client.send_file(
             channel,
@@ -669,7 +675,8 @@ class Fun(Plugin):
 
     @command(pattern="^!image triggered(?: (.*))?$",
              description="make someone triggered",
-             usage="!image triggered [user|emoji|url]")
+             usage="!image triggered [user|emoji|url]",
+             global_cooldown=5)
     async def triggered_gif(self, message: discord.Message, args: tuple):
         server = message.server
         channel = message.channel
@@ -695,8 +702,8 @@ class Fun(Plugin):
         w, h = fg.size
 
         for i in range(1, 20):
-            im = Image.new("RGBA", (int(w * 0.7), int(h * 0.7)))
-            im.paste(fg, (int(-w * rand()), int(-h * rand())))
+            im = Image.new("RGBA", (int(w*0.8), int(h*0.8)))
+            im.paste(fg, (int(-w*1.1 * rand()), int(-h*1.1 * rand())))
 
             frames.append(im)
 
