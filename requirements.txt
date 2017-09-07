@@ -10,3 +10,4 @@ dateutils
 Pillow
 wikipedia
 urbandict
+python-dateutil
