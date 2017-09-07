@@ -1042,9 +1042,8 @@ class Admin(Plugin):
         user = message.author
 
         permission_names = [x[0] for x in discord.Permissions()]
-        permission = search(args[0].replace(' ', '_'), permission_names)
-        log.info(permission_names)
-        if permission is None:
+        permissions = [search(x.strip().replace(' ', '_'), permission_names) for x in args[0].split(",")]
+        if None in permissions:
             await self.client.send_message(
                 channel,
                 "No permission found by that name."
@@ -1058,10 +1057,10 @@ class Admin(Plugin):
                 message,
                 types=(discord.Channel,)
             )
-            check = lambda m: has_permission(m.permissions_in(chan), permission)
+            check = lambda m: has_permission(m.permissions_in(chan), permissions)
             location = chan
         else:
-            check = lambda m: has_permission(m, permission)
+            check = lambda m: has_permission(m, permissions)
             location = server
 
         try:
@@ -1073,14 +1072,14 @@ class Admin(Plugin):
             )
             return
 
-        body = "Members who have `{}` granted in {}:\n`".format(
-            permission,
-            location.mention if isinstance(location, discord.Channel) else location.name
+        body = "Members who have `{}` granted in `{}`:\n\n`".format(
+            ', '.join(permissions),
+            clean_string(location.mention if isinstance(location, discord.Channel) else location.name)
         )
 
-        body += '`, `'.join([
+        body += truncate('`, `'.join([
             clean_string(member.name) for member in sorted(granted_members, key=lambda m: -m.top_role.position)
-        ])
+        ]), 1500)
 
         await self.client.send_message(
             channel,
