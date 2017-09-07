@@ -253,7 +253,7 @@ class Fun(Plugin):
                 if img is None:
                     url = args[arg]
             else:
-                url = "https://cdn.discordapp.com/avatars/{}/{}.{}".format(target.id, target.avatar, "gif" if target.avatar.startswith("a_") else "png")
+                url = "https://cdn.discordapp.com/avatars/{}/{}.{}?size=512".format(target.id, target.avatar, "gif" if target.avatar.startswith("a_") else "png")
 
         fg = None
         if fg is None and img is not None:
@@ -289,7 +289,7 @@ class Fun(Plugin):
     @command(pattern="!image bren(?: (.*))?",
              description="make a man think about an image/user/emoji",
              usage="!image bren [url|username|emoji]",
-             global_cooldown=10)
+             global_cooldown=5)
     async def bren_thinking(self, message: discord.Message, args: tuple):
         server = message.server
         channel = message.channel
@@ -305,7 +305,7 @@ class Fun(Plugin):
 
         await self.client.send_typing(channel)
 
-        fg = await self.get_image(message, args, server=True)
+        fg = await self.get_image(message, args, arg=0, server=True)
         if fg is None:
             await self.client.send_message(
                 channel,
@@ -626,6 +626,8 @@ class Fun(Plugin):
                 "No image found."
             )
             return
+        else:
+            im = im.convert("RGBA")
 
         w, h = im.size
 
