@@ -39,7 +39,7 @@ class Pedant(discord.Client):
             else:
                 await self.db.redis.setex('heartbeat:{}:ping'.format(self.shard_id), keep_alive, '0')
 
-            await asyncio.sleep(self.ping_interval / 2)
+            await asyncio.sleep(3)
 
     async def on_ready(self):
         for plugin in self.plugins:
@@ -65,12 +65,14 @@ class Pedant(discord.Client):
             return
         if message.author == self.user:
             return
+        if message.author.bot:
+            return
 
         server = message.server
         if server is None:
             return
 
-        if message.content.startswith((';enable', ';disable')) and \
+        if message.content.startswith((';enable ', ';disable ')) and \
                 len(message.content.split(maxsplit=1)) == 2:
             channel = message.channel  # type: discord.Channel
             user = message.author  # type: discord.Member
@@ -122,6 +124,33 @@ class Pedant(discord.Client):
             return
 
         enabled_plugins = await self.plugin_manager.get_all(server)
+
+        if message.content.startswith((';enablecmd ', ';disablecmd ')) and \
+                len(message.content.split(maxsplit=1)) == 2:
+            channel = message.channel
+            user = message.author
+
+            if not has_permission(user, "manage_channels"):
+                await self.send_message(
+                    channel,
+                    "{user.mention}, You cannot modify server settings.\n"
+                    "Requires `manage_server`.".format(user=user)
+                )
+                return
+
+            cmd_name = message.content.split(maxsplit=1)[1]
+            cmds = []
+            m = "disabled" if message.content.startswith(';disablecmd') else "enabled"
+            for p in enabled_plugins:
+                if cmd_name in p.commands:
+                    f = self.db.redis.sadd if message.content.startswith(';disablecmd') else self.db.redis.srem
+                    cmds.append(cmd_name)
+                    await f('channel_disabled:{}'.format(channel.id), cmd_name)
+
+            await self.send_message(
+                channel,
+                "{} commands: `{}`".format(m, ','.join(cmds))
+            )
 
         for p in enabled_plugins:
             self.loop.create_task(p._on_message(message))
