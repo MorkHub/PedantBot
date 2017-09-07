@@ -12,6 +12,7 @@ from plugins.help import Help
 from plugins.info import Info
 from plugins.levels import Levels
 from plugins.music import Music
+from plugins.reminders import Reminders
 from plugins.test import Test
 from plugins.time import Time
 from plugins.utility import Utility
