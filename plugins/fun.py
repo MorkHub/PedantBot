@@ -222,7 +222,7 @@ class Fun(Plugin):
 
         return W, H
 
-    async def get_image(self, message: discord.Message, args: tuple, arg=0, server=False) -> Image.Image:
+    async def get_image(self, message: discord.Message, args: tuple, arg=0, server=False, gif=True) -> Image.Image:
         server = message.server
         channel = message.channel
         user = message.author
@@ -253,7 +253,7 @@ class Fun(Plugin):
                 if img is None:
                     url = args[arg]
             else:
-                url = "https://cdn.discordapp.com/avatars/{}/{}.{}?size=512".format(target.id, target.avatar, "gif" if target.avatar.startswith("a_") else "png")
+                url = "https://cdn.discordapp.com/avatars/{}/{}.{}?size=512".format(target.id, target.avatar, "gif" if gif and target.avatar.startswith("a_") else "png")
 
         fg = None
         if fg is None and img is not None:
@@ -716,6 +716,49 @@ class Fun(Plugin):
             channel,
             fn,
             filename="triggered.gif",
+        )
+
+        if os.path.isfile(fn):
+            os.remove(fn)
+
+    @command(pattern="^!image spin(?: (.*))?$",
+             description="create an animation of an image spinning",
+             usage="!image spin [user|emoji|url")
+    async def spinning_gif(self, message: discord.Message, args: tuple):
+        server = message.server
+        channel = message.channel
+        user = message.author
+
+        fg = await self.get_image(message, args, server=True, gif=False)
+        if fg is None:
+            await self.client.send_message(
+                channel,
+                "No image found"
+            )
+            return
+
+        await self.client.send_typing(channel)
+
+        frames = []
+        w, h = fg.size
+        if min(w, h) < 300:
+            fg = fg.resize(Fun.scale(w, h, 500, True), resample=Image.BILINEAR)
+
+        s = 18
+        inc = 360 // s
+
+        for i in range(s):
+            im = fg.rotate(i * inc)
+            frames.append(im)
+
+        fn = self.getfile("gif")
+        frames[0].save(fn, "GIF", save_all=True, append_images=frames[1:], loop=0, duration=20  )
+
+        await self.client.send_file(
+            channel,
+            fn,
+            filename="spinning.gif",
+            content="You spin my world right round baby"
         )
 
         if os.path.isfile(fn):
