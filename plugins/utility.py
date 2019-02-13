@@ -109,7 +109,7 @@ class Utility(Plugin):
             "**XP**: `{xp:,}`\n".format(
                 user=target,
                 roles=', '.join([
-                    str(x) for x in sorted(target.roles, key=lambda r: -r.position) if not x.is_everyone
+                    x.mention for x in sorted(target.roles, key=lambda r: -r.position) if not x.is_everyone
                 ]) or None,
                 xp=xp
             )
@@ -278,13 +278,15 @@ class Utility(Plugin):
             embed=embed
         )
 
-    @command(pattern="^!(?:permissions|perms)(?: (.*))?$",
+    @command(pattern="^!(?:permissions|perms)(?: (.*?))?(?: in (.*))?$",
              description="list permissions available to a user",
              usage="!permissions [user]")
     async def list_perms(self, message: discord.Message, args: tuple):
         server = message.server
         channel = message.channel
         user = message.author
+
+        log.info(args)
 
         target = await get_object(
             self.client,
@@ -293,6 +295,13 @@ class Utility(Plugin):
             types=(discord.Member,)
         ) if args[0] else user
 
+        channelTarget = await get_object(
+            self.client,
+            args[1],
+            message,
+            types=(discord.Channel,)
+        ) if args[1] else channel
+
         if not target:
             await self.client.send_message(
                 channel,
@@ -300,7 +309,7 @@ class Utility(Plugin):
             )
             return
 
-        permissions = channel.permissions_for(target)
+        permissions = channelTarget.permissions_for(target)
         granted = []
         denied = []
         for permission in permissions:
@@ -574,12 +583,16 @@ class Utility(Plugin):
         channel = message.channel
         user = message.author
 
-        target = await get_object(
-            self.client,
-            args[0],
-            message,
-            similar=True
-        ) if args[0] else user
+        if args[0].isnumeric():
+            target = server.get_member(args[0]) or \
+                await self.client.get_user_info(args[0])
+        else:
+            target = await get_object(
+                self.client,
+                args[0],
+                message,
+                similar=True
+            ) if args[0] else user
 
         if target is None:
             await self.client.send_message(
@@ -594,7 +607,7 @@ class Utility(Plugin):
                 name = target.name
             else:
                 name = "#{}".format(target.name)
-        elif isinstance(target, discord.Member):
+        elif isinstance(target, discord.User):
             name = "@{}".format(target.name)
             thumb = "https://cdn.discordapp.com/avatars/{}/{}.{}".format(
                 target.id,
