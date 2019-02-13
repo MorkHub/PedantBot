@@ -15,7 +15,7 @@ class Help(Plugin):
     def __init__(self, *args, **kwargs):
         Plugin.__init__(self, *args, **kwargs)
 
-    @command(pattern="^([?/])(?:help|)$",
+    @command(pattern="^[!?]help$",
              description="get help",
              usage="?help")
     async def list_plugins(self, message: discord.Message, args: tuple):
@@ -23,8 +23,8 @@ class Help(Plugin):
         channel = message.channel  # type: discord.Channel
         user = message.author  # type: discord.Member
 
-        body = "Use `{}help <topic>` to find specific help.\n\n".format(args[0])
-        for plugin in sorted(await self.client.plugin_manager.get_all(server), key=lambda p: p.__class__.__name__):
+        body = "Use `!help <topic>` to find specific help.\n\n"
+        for plugin in sorted(await self.client.plugin_manager.get_plugins(server), key=lambda p: p.__class__.__name__):
             body += "**{plugin.__class__.__name__}**: {plugin.plugin_name}\n".format(plugin=plugin)
 
         embed = discord.Embed(
@@ -38,7 +38,7 @@ class Help(Plugin):
             embed=embed
         )
 
-    @command(pattern="^[?/]help (.+)$",
+    @command(pattern="^[!?]help (.+)$",
              description="get help",
              usage="?help <plugin>")
     async def plugin_help(self, message: discord.Message, args: tuple):
@@ -61,7 +61,7 @@ class Help(Plugin):
         for command_name, func in sorted(plugin.commands.items(), key=lambda f: f[1].info.get('name', f[0])):
             cmd = func.info.get('name', command_name)
             description = func.info.get('description', 'No description')
-            body += "{e}**{name}** `{cmd}`: {desc}{e}\n".format(name=command_name, cmd=cmd, desc=description, e='~~' if command_name in disabled_commands else '')
+            body += "{e}`{cmd}`: {desc}{e}\n".format(name=command_name, cmd=cmd, desc=description, e='~~' if command_name in disabled_commands else '')
 
         embed = discord.Embed(
             title="{}: commands".format(plugin.__class__.__name__),
