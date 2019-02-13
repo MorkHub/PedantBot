@@ -286,7 +286,7 @@ class Fun(Plugin):
 
         return Image.fromarray(a)
 
-    @command(pattern="!image bren(?: (.*))?",
+    @command(pattern="!(?:image|img) bren(?: (.*))?",
              description="make a man think about an image/user/emoji",
              usage="!image bren [url|username|emoji]",
              global_cooldown=5)
@@ -352,7 +352,7 @@ class Fun(Plugin):
         if os.path.exists(fn):
             os.remove(fn)
 
-    @command(pattern="!image collage(?: (.*))?",
+    @command(pattern="!(?:image|img) collage(?: (.*))?",
              description="create an RGB collage from a single image",
              usage="!image collage [url|username|emoji]",
              global_cooldown=5)
@@ -386,7 +386,7 @@ class Fun(Plugin):
         if os.path.exists(fn):
             os.remove(fn)
 
-    @command(pattern="!image rotat[eo] ([0-9]+)(?:deg)?(?: (.*))?",
+    @command(pattern="!(?:image|img) rotat[eo] ([0-9]+)(?:deg)?(?: (.*))?",
              description="create an RGB collage from a single image",
              usage="!image rotate <degrees> [url|username|emoji]",
              global_cooldown=3)
@@ -435,7 +435,7 @@ class Fun(Plugin):
     def getfile(ext="png"):
         return 'images/{}.{}'.format(hashlib.sha1(os.urandom(8)).hexdigest(), ext)
 
-    @command(pattern="^!image colou?r ([^ ]*)(?: (.*))?$",
+    @command(pattern="^!(?:image|img) colou?r ([^ ]*)(?: (.*))?$",
              description="make images different colours",
              usage="!image colour <colour> [user|url|emoji]",
              global_cooldown=3)
@@ -518,7 +518,7 @@ class Fun(Plugin):
         if os.path.exists(fn):
             os.remove(fn)
 
-    @command(pattern="^!image invert(?: (.*))?$",
+    @command(pattern="^!(?:image|img) invert(?: (.*))?$",
              description="invert colour on an image",
              usage="!image invert [user|url|emoji]",
              global_cooldown=3)
@@ -675,7 +675,7 @@ class Fun(Plugin):
         if os.path.isfile(fn):
             os.remove(fn)
 
-    @command(pattern="^!image triggered(?: (.*))?$",
+    @command(pattern="^!(?:image|img) triggered(?: (.*))?$",
              description="make someone triggered",
              usage="!image triggered [user|emoji|url]",
              global_cooldown=5)
@@ -721,7 +721,7 @@ class Fun(Plugin):
         if os.path.isfile(fn):
             os.remove(fn)
 
-    @command(pattern="^!image spin(?: (.*))?$",
+    @command(pattern="^!(?:image|img) spin(?: (.*))?$",
              description="create an animation of an image spinning",
              usage="!image spin [user|emoji|url")
     async def spinning_gif(self, message: discord.Message, args: tuple):
@@ -752,7 +752,7 @@ class Fun(Plugin):
             frames.append(im)
 
         fn = self.getfile("gif")
-        frames[0].save(fn, "GIF", save_all=True, append_images=frames[1:], loop=0, duration=20  )
+        frames[0].save(fn, "GIF", save_all=True, append_images=frames[1:], loop=0, duration=20, transparency=0)
 
         await self.client.send_file(
             channel,
@@ -763,3 +763,37 @@ class Fun(Plugin):
 
         if os.path.isfile(fn):
             os.remove(fn)
+
+    @command(pattern="^!iq ([0-9]+)$",
+             description="quote with an image",
+             usage="!iq 12341241")
+    async def image_quote(self, message: discord.Message, args: tuple):
+        server = message.server
+        channel = message.channel
+        user = message.author
+
+        hold = Image.new("L", (1,1))
+        draw = ImageDraw.Draw(hold)
+
+        font = ImageFont.truetype("Arial", 16)
+
+        timestr = message.timestamp.strftime("%H:%M")
+        msgstr  = user.name
+
+        x1, y1 = draw.textsize(timestr, font=font)
+        x2, y2 = draw.textsize(msgstr, font=font)
+
+        bg = Image.new("RGBA", (x1+x2+25, y1+20))
+        draw = ImageDraw.Draw(bg)
+
+        draw.text((10, 10), timestr, fill=(153, 170, 181), font=font)
+        draw.text((15 + x1, 10), msgstr, fill=user.colour.to_tuple(), font=font)
+
+        fn = self.getfile()
+        bg.save(fn, "PNG")
+
+        await self.client.send_file(channel, filename="image.png", fp=fn)
+
+        if os.path.isfile(fn):
+            os.remove(fn)
+
