@@ -41,6 +41,15 @@ class Time(Plugin):
         else:
             return False
 
+    // TODO: implement get_server_timezone
+
+    @staticmethod
+    async def get_server_timezone(server):
+        #region = server.region  # type: discord.ServerRegion
+        return pytz.UTC
+
+
+
     @staticmethod
     def check_timezone(timezone):
         timezone = search(timezone, pytz.all_timezones)
@@ -51,9 +60,9 @@ class Time(Plugin):
         tz = pytz.timezone(timezone)
         return tz
 
-    @command(pattern="^@time(?: (.*))?$",
+    @command(pattern="^!time(?: (.*))?$",
              description="show the local time for yourself or another user.",
-             usage="@time [user]")
+             usage="!time [user]")
     async def show_local_time(self, message: discord.Message, args: tuple):
         server = message.server  # type: discord.Server
         channel = message.channel  # type: discord.Channel
@@ -78,8 +87,8 @@ class Time(Plugin):
             await self.client.send_message(
                 channel,
                 "No timezone could be found for {user}.\n"
-                "You can set your timezone with `@timezone`\n"
-                "E.g. `@timezone US/Central`".format(
+                "You can set your timezone with `!timezone`\n"
+                "E.g. `!timezone US/Central`".format(
                     user=target
                 )
             )
@@ -96,9 +105,9 @@ class Time(Plugin):
             )
         )
 
-    @command(pattern="^@timezone(?: ?(.*)?)$",
+    @command(pattern="^!timezone(?: ?(.*)?)$",
              description="set or view your timezone",
-             usage="@timezone [timezone]")
+             usage="!timezone [timezone]")
     async def set_timezone(self, message: discord.Message, args: tuple):
         channel = message.channel
         user = message.author
@@ -109,8 +118,8 @@ class Time(Plugin):
                 await self.client.send_message(
                     channel,
                     "No timezone could be found for you. UTC will be assumed.\n"
-                    "You can set your timezone with `@timezone`\n"
-                    "E.g. `@timezone US/Central`"
+                    "You can set your timezone with `!timezone`\n"
+                    "E.g. `!timezone US/Central`"
                 )
                 return
 
