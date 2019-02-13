@@ -47,7 +47,7 @@ class StrProxy(object):
         return temp
 
     def __repr__(self):
-        return str(self)
+        return repr(str(self))
 
     def __eq__(self, other):
         if isinstance(other, StrProxy):
@@ -59,9 +59,13 @@ class StrProxy(object):
         return str(self) == other
 
 
-def remaining_time(d: datetime.datetime = None, d2: datetime.datetime = None, fmt: bool = False) -> StrProxy:
+def remaining_time(
+    d: datetime.datetime = None, d2: datetime.datetime = None, fmt: bool = False,
+    years = True, months = True, weeks = True, days = True, hours = True, minutes = True, seconds = True, if_now = "now"
+) -> StrProxy:
+
     if d is None:
-        return StrProxy('0 seconds')
+        return StrProxy(if_now, years=0, days=0, hours=0, minutes=0, seconds=0)
 
     if d2 is not None:
         now, d = d, d2
@@ -77,37 +81,55 @@ def remaining_time(d: datetime.datetime = None, d2: datetime.datetime = None, fm
         suffix = "ago"
 
     diff = d - now
-    seconds = diff.total_seconds()
-    split = []
-    for i in [86400 * 365, 86400, 3600, 60, 1]:
-        q = seconds // i
-        seconds -= q * i
-        split.append(int(q))
-    unit = ('y', 'd', 'h', 'm', 's')
+    seconds = abs(diff.total_seconds())
 
-    index = -1
-    for i in range(5):
-        if split[i] > 0:
-            index = i
-            break
+    Y, M, w, d, h, m, s = 0, 0, 0, 0, 0, 0, 0
 
-    strings = ['year', 'day', 'hour', 'minute', 'second']
-    return_string = "{} {}{}".format(split[index], strings[index], 's' if split[index] != 1 else '')
+    parts = []
 
-    if fmt:
-        _tuple = tuple(
-            "{}{}".format(x, unit[i]) for i, x in enumerate(split)
-        )
-    else:
-        _tuple = (prefix, return_string, suffix)
+    if years:
+        Y = seconds // 86400 * 365
+        seconds -= Y * 86400 * 365
+        parts.append("{:.0f}Y".format(Y))
+
+    if months:
+        M = seconds // 86400 * 30
+        seconds -= M * 86400 * 30
+        parts.append("{:.0f}M".format(M))
+
+    if weeks:
+        w = seconds // 86400 * 7
+        seconds -= w * 86400 * 7
+        parts.append("{:.0f}w".format(w))
+
+    if days:
+        d = seconds // 86400
+        seconds -= d * 86400
+        parts.append("{:.0f}d".format(d))
+
+    if hours:
+        h = seconds // 3600
+        seconds -= h * 3600
+        parts.append("{:.0f}h".format(h))
+
+    if minutes:
+        m = seconds // 60
+        seconds -= m * 60
+        parts.append("{:.0f}m".format(m))
+
+    if seconds:
+        s = seconds % 60
+        parts.append("{:.0f}s".format(s))
 
     return StrProxy(
-        *_tuple,
-        years=split[0],
-        days=split[1],
-        hours=split[2],
-        minutes=split[3],
-        seconds=split[4]
+        *parts,
+        years=Y,
+        months=M,
+        weeks=w,
+        days=d,
+        hours=h,
+        minutes=m,
+        seconds=s
     )
 
 
@@ -363,6 +385,8 @@ def roll_dice(inp: str = "") -> list:
 def find_match(haystack, needle: str = "", match_case=False):
     needle_words = needle.split()
     for item in haystack:
+        if item[0] == '*' and item[-1] == '*' and item[1:-1].lower() in needle.lower():
+            return (item, ())
         if item == needle or \
                 match_case is True and item.lower() == needle.lower():
             return (item, ())
@@ -536,3 +560,6 @@ async def get_object(cln: discord.Client, name: str, message: discord.Message = 
                      search(name, haystack, similar=similar, attr='id')
 
     return target
+
+def fancy_join(d):
+    return ", ".join([str(x) for x in data[:-2]] + [" and ".join(str(x) for x in data[-2:])])
