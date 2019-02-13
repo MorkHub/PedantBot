@@ -235,10 +235,11 @@ class Info(Plugin):
             if role.is_everyone:
                 continue
 
-            temp = "• `[{role.id}] ({members}) {name:<{pad}} {role.colour} {role.permissions.value} {hoist}`\n".format(
+            temp = "• `[{role.id}] ({members}) {m}{name:<{pad}} {role.colour} {role.permissions.value} {hoist}`\n".format(
                 pad=pad,
                 role=role,
                 name=clean_string(role.name),
+                m='@' if role.mentionable else '',
                 members=members.get(role.id, 0),
                 hoist='hoisted' if role.hoist else ''
             )
