@@ -1,6 +1,7 @@
 # import discord
 # import logging
 import datetime
+import math
 
 from classes.plugin import Plugin
 from decorators import command
@@ -105,6 +106,7 @@ class Commands(Plugin):
             )  # type: discord.Message
 
             if not res or res.content.lower() == 'n':
+                await self.client.delete_message(message)
                 return
 
         added = await storage.set('command:{}'.format(trigger), response)
@@ -117,7 +119,7 @@ class Commands(Plugin):
                 "Reaction saved!"
             )
 
-    @command(pattern='^!lcr$',
+    @command(pattern='^!lcr(?: ([0-9]+))?$',
              description='list reactions for this server',
              usage='!lcr')
     async def list_reactions(self, message: discord.Message, args: tuple = ()):
@@ -131,21 +133,30 @@ class Commands(Plugin):
             server=server
         )
 
-        for n, _command in enumerate(commands):
+        PAGE_SIZE = 10
+        page = int(args[0] or 1) - 1
+        pages = math.ceil(len(commands) / PAGE_SIZE)
+
+        start = page * PAGE_SIZE
+        end = (page + 1) * PAGE_SIZE
+
+        for n, _command in enumerate(commands[start:end]):
             response = await storage.get('command:{}'.format(_command))
             response = response
             if not response:
                 await storage.srem('commands', _command)
 
             body += "__#{}__ - *\"{:.100}\"* -> *\"{:.100}\"*\n".format(
-                n,
+                start + n,
                 _command,
                 str(response).replace('\n', '\\n')
             )
 
         embed = discord.Embed(
-            title="Custom commands in {server}".format(
-                server=server
+            title="Custom commands in {server} (pg. {page}/{pages})".format(
+                server=server,
+                page=page + 1,
+                pages=pages
             ),
             description=body
         )
