@@ -16,7 +16,7 @@ def command(pattern: str = "", db_name: str = None, description: str = "", usage
     def actual_decorator(func):
         name = func.__name__
         cmd_name = "/" + name
-        prog = re.compile(pattern or cmd_name)
+        prog = re.compile(pattern or cmd_name, flags=re.MULTILINE)
         is_nsfw = hasattr(func, 'nsfw') and func.nsfw is not False
 
         @wraps(func)
@@ -76,10 +76,10 @@ def command(pattern: str = "", db_name: str = None, description: str = "", usage
                 if banned_role in [x.id for x in message.author.roles]:
                     return
 
-            log.info("{}#{}@{} >> {}".format(
+            log.info("{}@{}#{} >> {}".format(
+                message.server.name,
                 message.author.name,
                 message.author.discriminator,
-                message.server.name,
                 truncate(message.clean_content.replace('\n', r'\n'), 100)
             ))
 
@@ -108,26 +108,63 @@ def command(pattern: str = "", db_name: str = None, description: str = "", usage
     return actual_decorator
 
 
-def bg_task(sleep_time):
+class Trigger:
+    def __init__(self):
+        pass
+
+    def update(self):
+        pass
+
+    def is_ready(self):
+        return False
+
+    def until_ready(self):
+        return 30
+
+def Timer(Trigger):
+    def __init__(self, timeout):
+        self.timeout = timedelta(seconds=timeout)
+        self.update()
+
+    def update(self):
+        self.trigger_time = datetime.now() + self.timeout
+
+    def is_ready(self):
+        return datetime.now() >= self.trigger_time
+
+    def until_ready(self):
+        now = datetime.now()
+        if self.is_ready():
+            return (self.trigger_time - now).total_seconds
+        else:
+            return 0
+
+
+def bg_task(sleep_time, ignore_errors=True):
     def actual_decorator(func):
         @wraps(func)
         async def wrapper(self):
             await self.client.wait_until_ready()
             while True:
-                try:
+                if ignore_errors:
+                    try:
+                        await func(self)
+                    except Exception as e:
+                        log.info("An error occured in the {} bg task. Retrying in {} seconds".format(
+                            func.__name__,
+                            sleep_time
+                        ))
+                        log.exception(e)
+                else:
                     await func(self)
-                except Exception as e:
-                    log.info("Error while executing {}. Retrying in {} seconds".format(
-                        func.__name__,
-                        sleep_time
-                    ))
-                    log.exception(e)
 
                 await asyncio.sleep(sleep_time)
 
         wrapper._bg_task = True
         return wrapper
+
     return actual_decorator
+
 
 
 def nsfw(func):
