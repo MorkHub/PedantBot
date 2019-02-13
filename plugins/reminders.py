@@ -299,7 +299,7 @@ class Reminders(Plugin):
             )
         )
 
-    @command(pattern="^!remindme (?:at|on) (.*) to (.+)$",
+    @command(pattern="^!remindme (?:at|on) (.*?) to (.+)$",
              description="schedule a reminder",
              usage="!remindme <at|on> <date|time> to <reminder>")
     async def remindme_at(self, message: discord.Message, args: tuple):
