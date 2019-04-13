@@ -41,7 +41,7 @@ class Time(Plugin):
         else:
             return False
 
-    // TODO: implement get_server_timezone
+    # TODO: implement get_server_timezone
 
     @staticmethod
     async def get_server_timezone(server):
