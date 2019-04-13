@@ -1,5 +1,4 @@
-#!/usr/bin/python5
-
+#!/usr/bin/python3
 from util import redis_address
 
 """Start Plugins"""
@@ -35,7 +34,6 @@ def main():
         format='[%(asctime)s]:%(levelname)s:pedantbot#{}: %(message)s'.format(shard),
         datefmt="%d-%b-%Y %H:%M:%S"
     )
-
 
     log = logging.getLogger("pedantbot")
     log.info("Starting...")
@@ -76,9 +74,7 @@ def main():
             redis_url=redis_url
         )
 
-        time.sleep(3)
-
-        bot.run(token, bot=True)
+        bot.run(token)
     except Exception as e:
         log.exception(e)
         exit(1)
