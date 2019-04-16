@@ -17,6 +17,7 @@ class Birthdays(Plugin):
 
     def __init__(self, *args, **kwargs):
         Plugin.__init__(self, *args, **kwargs)
+        self.failed_servers = []
 
     async def get_birthday(self, user: discord.User):
         storage = self.db.redis
@@ -422,15 +423,25 @@ class Birthdays(Plugin):
 
         last_check = date.fromtimestamp(last_check_ts or 0)
  
-        if last_check < today:
+        if last_check < today or self.failed_servers:
             log.info("Checking daily birthdays ({})".format(today.strftime(DATE_FORMAT)))
-            servers = await storage.smembers("Birthdays:global:daily_announce_enabled") or []
+            servers = []
+            if last_check < today:
+                servers.extend(await storage.smembers("Birthdays:global:daily_announce_enabled") or [])
+            if self.failed_servers:
+                servers.extend(self.failed_servers)
+
+            log.info("Will announce birthdays in {} servers.".format(len(servers)))
+
+            self.failed_servers = []
+
             if len(servers) == 0:
                 log.info("Daily announcement disabled in all servers")
  
             for server_id in servers:
                 server = self.client.get_server(server_id)
                 if not server:
+                    log.warn("Server {} not found".format(server_id))
                     continue
  
                 announce_channel = await storage.get("Birthdays:{}:announce_channel".format(server_id))
@@ -454,7 +465,11 @@ class Birthdays(Plugin):
                                 age
                             )
  
-                        await self.client.send_message(channel, body)
+                        try:
+                            await self.client.send_message(channel, body)
+                        except Exception as e:
+                            log.exception(e)
+                            self.failed_servers.add(server_id)
                 except Exception as e:
                     log.warning("Could not announce birthdays in server {}".format(server_id))
                     log.exception(e)
