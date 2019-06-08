@@ -50,8 +50,12 @@ class Commands(Plugin):
         user = message.author
 
         storage = await self.get_storage(server)
-        commands = await storage.smembers('commands')
 
+        disabled_in = await storage.smembers('no_cmds')
+        if channel.id in disabled_in:
+            return
+
+        commands = await storage.smembers('commands')
         trigger, args = find_match(commands, message.content)
 
         if trigger:
@@ -62,6 +66,23 @@ class Commands(Plugin):
                 channel,
                 response
             )
+
+    @command(pattern='^!noacr (.+)$',
+             description='disable commands in a channel',
+             usage='!noacr #general')
+    async def disable_commands(self, message, args):
+        server = message.server
+        channel = message.channel
+        user = message.author
+        storage = await self.get_storage(server)
+
+        chans = []
+        if message.channel_mentions:
+            for chan in message.channel_mentions:
+                await storage.sadd('no_cmds', chan.id)
+                chans.append(chan.mention)
+
+        await self.client.send_message(channel, "Commands disabled in {}".format(', '.join(chans)))
 
     @command(pattern=r'^!acr ("?)?([^"]*)\1 ("?)?([^"]*)\3$',
              description="add or edit a custom reaction",
