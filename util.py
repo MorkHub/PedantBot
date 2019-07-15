@@ -340,7 +340,7 @@ async def join_voice(client: discord.Client, member: discord.Member, join_first:
 
 
 def roll_dice(inp: str = "") -> list:
-    rolls = []
+    dice = []
     for throw in inp.split():
         try:
             dice = re.findall(
@@ -373,13 +373,13 @@ def roll_dice(inp: str = "") -> list:
 
             rolls = []
             for i in range(n):
-                roll.append(randint(1, d) + m)
+                rolls.append(randint(1, d) + m)
 
-            roll = sum(rolls)
-            data = (string, roll, rolls)
+            roll_sum = sum(dice)
+            data = (string, roll_sum, rolls)
 
-            rolls.append(data)
-    return rolls
+            dice.append(data)
+    return dice
 
 
 def find_match(haystack, needle: str = "", match_case=False):
