@@ -1,5 +1,5 @@
 asyncio
-discord.py[voice]
+discord.py[voice]==0.16.12
 youtube-dl
 aioredis
 redis
@@ -11,3 +11,5 @@ Pillow
 wikipedia
 urbandict
 python-dateutil
+numpy
+imageio
