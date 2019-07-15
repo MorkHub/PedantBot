@@ -2490,6 +2490,7 @@ async def image_gen(message,*args):
     image.save('test.png','PNG')
     await client.send_file(message.channel,'test.png',content="{}".format(message.author.mention))
 
+@register('bbren', alias='bren')
 @register('bren','<url to image>',rate=10)
 async def bren_think(message,*args):
     """creates an image of brendaniel thinking about things"""
@@ -2508,22 +2509,35 @@ async def bren_think(message,*args):
     else:
         fg = Image.open(get(args[0]))
 
-    bren = Image.open("bren.png")
+    bren = Image.open("bren.png").convert("RGBA")
+    mask = Image.open("brenback.png").convert("L")
+
     out = []
     n = fg.n_frames if hasattr(fg, 'n_frames') else 1
     for i in range(n):
         fg.seek(i)
         bg = bren.copy()
 
-        w, h = fg.size
-        MAX = 180
-        w2, h2 = scale(w, h)
+        if message.content[1:].startswith('bbren'):
+            fg2 = fg.resize((400, 370))
+            masked = Image.new("RGBA", bren.size, color=(255, 255, 255))
+            masked.paste(fg2, (10, 20))
+            masked.putalpha(mask)
 
-        fg2 = fg.resize((min(w2, MAX), min(MAX, h2)))
-        bg.alpha_composite(
-            fg2.convert("RGBA"),
-            (120 + round((MAX - w2) / 2), 110 + round((MAX - h2) / 2))
-        )
+            bg.alpha_composite(
+                masked
+            )
+
+        else:
+            MAX = 180
+            w2, h2 = scale(*fg.size)
+
+            fg2 = fg.resize((min(w2, MAX), min(MAX, h2)))
+            bg.alpha_composite(
+                fg2.convert("RGBA"),
+                (120 + round((MAX - w2) / 2), 110 + round((MAX - h2) / 2))
+            )
+
         out.append(bg)
 
     fn = None
