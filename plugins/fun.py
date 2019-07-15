@@ -766,3 +766,96 @@ class Fun(Plugin):
         if os.path.isfile(fn):
             os.remove(fn)
 
+    @command(pattern="^!(?:roll|dice) (.+)$",
+             description="roll a die (or dice)",
+             usage="!roll 2d6+3")
+    async def roll_dice(self, message: discord.Message, args: tuple):
+        server = message.server
+        channel = message.channel
+        user = message.author
+
+        args = list(args)
+        dice_to_roll = []
+        clean = []
+        summary = False
+
+        for arg in args[0].split():
+            if arg.lower() == "-s":
+                summary = True
+                continue
+
+            if not (
+                arg[0].isnumeric() or
+                arg[0] == 'd' and arg[1].isnumeric()
+            ):
+                dice_to_roll.append(arg)
+            else:
+                clean.append(arg)
+
+        dice_to_roll = ' '.join(dice_to_roll)
+        clean = ' '.join(clean)
+
+        dice_rolls = roll_dice(clean or "d20")
+        if not dice_rolls:
+            await self.client.send_message(
+                channel,
+                "{}, you requested an invalid die/dice.".format(user.mention)
+            )
+            return
+
+        msg = ''
+        for roll in dice_rolls:
+            print(roll[2])
+            if summary:
+                msg += "• `{}` rolls: {} | total: `{}`\n".format(roll[0], ', '.join(repr(x) for x in roll[2]), repr(roll[1]))
+            else:
+                msg += "• `{}` total: `{}`\n".format(*roll)
+
+        embed = discord.Embed(description=msg, colour=discord.Color.gold(), timestamp=message.timestamp)
+        embed.set_author(
+            name="{} rolls {} {}.".format(message.author, len(dice_rolls), dice_to_roll or ('die' if len(dice_rolls) == 1 else 'dice')),
+            icon_url=user.avatar_url or user.default_avatar_url
+        )
+        embed.set_footer(icon_url="https://themork.co.uk/wiki/images/4/4c/Dice.png",text="PedantBot Dice")
+
+        await self.client.send_message(message.channel,embed=embed)
+
+def check_type(s,d=0,t=int):
+    try:
+        return t(s)
+    except:
+        try:
+            return t(d)
+        except:
+            return None
+
+# TODO: Use the function in util.py or move this function there
+def roll_dice(inp:str="") -> list:
+    rolls = []
+    for throw in inp.split():
+        try: 
+            #die = re.findall(r'^([0-9]*)(?=[Dd])[Dd]?([0-9]+)*(?:([+-]?[0-9]*))$', throw)
+            die = re.findall(r'^(?:([0-9]*)(?=[Dd]))?[Dd]?([0-9]+)*(?:([+-]?[0-9]*))$', throw)
+        except Exception as e:
+            log.warn("Invalid die: " + throw)
+
+        for (n,d,m) in die:
+            n = abs(check_type(n, 1) or 0)
+            d = abs(check_type(d, 20) or 0)
+            m = check_type(m)
+
+            if d < 1: continue
+            if n < 1: continue
+            if m > 0 and d < 1: continue
+
+            if n > 100 or d > 500 or abs(m) > 100: continue
+
+            string = "{}d{}{:+}".format(n,d,m)
+            roll = []
+
+            for i in range(n):
+                roll.append(randint(1, d))
+
+            data = (string, sum(roll) + m, tuple(roll))
+            rolls.append( data )
+    return rolls
