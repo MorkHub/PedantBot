@@ -10,6 +10,10 @@ build/
 dist/
 lib/
 var/
+bin/
+include/
+local/
+share/
 .installed.cfg
 
 # Rope project settings
