@@ -24,7 +24,7 @@ class Help(Plugin):
         user = message.author  # type: discord.Member
 
         body = "Use `!help <topic>` to find specific help.\n\n"
-        for plugin in sorted(await self.client.plugin_manager.get_plugins(server), key=lambda p: p.__class__.__name__):
+        for plugin in sorted(await self.client.plugin_manager.get_all(server), key=lambda p: p.__class__.__name__):
             body += "**{plugin.__class__.__name__}**: {plugin.plugin_name}\n".format(plugin=plugin)
 
         embed = discord.Embed(
