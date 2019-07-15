@@ -2,18 +2,21 @@ import logging
 import os
 import hashlib
 import numpy
+import re
+import requests
+import discord
+
 from random import randint, choice
 from PIL import Image, ImageDraw, ImageFont
 from PIL import GifImagePlugin as gif
 import PIL.ImageOps
-import requests
-from util import  *
 
 from classes.plugin import Plugin
-from decorators import *
+from decorators import command
+from util import get, get_object, get_last_image
+from classes.tempfilegen import TempFile
 
 log = logging.getLogger('pedantbot')
-cls = gif.GifImageFile
 
 
 class Fun(Plugin):
@@ -104,7 +107,7 @@ class Fun(Plugin):
             return
 
         bg = Image.new("RGBA", (128 * len(emoji), 128), color=(0, 0, 0, 0))
-        for i, (name, e_id) in enumerate(emoji):
+        for i, (_, e_id) in enumerate(emoji):
             url = "https://cdn.discordapp.com/emojis/{}.png".format(e_id)
             fg = Image.open(get(url))  # type: Image.Image
             w, h = fg.size
@@ -119,15 +122,14 @@ class Fun(Plugin):
             fg = fg.resize((w2, h2), Image.LINEAR)
             bg.paste(fg, (128 * i - x_offset, y_offset))
 
-        bg.save("{}.PNG".format(message.id), "PNG")
+        with TempFile("bigemoji.png") as fn:
+            bg.save(fn, "PNG")
 
-        await self.client.send_file(
-            channel,
-            "{}.PNG".format(message.id),
-            filename="biggerer.png"
-        )
-
-        os.remove("{}.PNG".format(message.id))
+            await self.client.send_file(
+                channel,
+                fn,
+                filename="biggerer.png"
+            )
 
     @command(pattern="^!(?:exec|eval) .*$",
              description="execute python code",
@@ -144,9 +146,7 @@ class Fun(Plugin):
              usage="!needsmorejpeg",
              global_cooldown=3)
     async def needs_more_jpeg(self, message: discord.Message, args: tuple):
-        server = message.server
         channel = message.channel
-        user = message.author
 
         responses = [
             "This image needed more JPEG",
@@ -174,38 +174,33 @@ class Fun(Plugin):
             )
             return
 
-        fn = None
-        if self.animated(img):
-            img = img  # type: gif.GifImageFile
-            from io import BytesIO
-            frames = []
+        with TempFile("needsmorejpeg") as fn:
+            if self.animated(img):
+                img = img  # type: gif.GifImageFile
+                from io import BytesIO
+                frames = []
 
-            for i in range(img.n_frames):
-                log.info(i)
-                img.seek(i)
-                buffer = BytesIO()
-                img.convert("RGB").save(buffer, "JPEG", quality=1)
-                frames.append(Image.open(buffer))
+                for i in range(img.n_frames):
+                    log.info(i)
+                    img.seek(i)
+                    buffer = BytesIO()
+                    img.convert("RGB").save(buffer, "JPEG", quality=1)
+                    frames.append(Image.open(buffer))
 
-            fn = self.getfile("gif")
-            frames[0].save(fn, "GIF", save_all=True, append_images=frames[1:], loop=img.info.get('loop'), duration=img.info.get('duration'))
-            out = "needsmorejpeg.gif"
-        else:
-            fn = self.getfile()
-            img = img.convert('RGB')
-            img.save(fn, "JPEG", quality=1)
-            out = "needsmore.jpeg"
+                frames[0].save(fn, "GIF", save_all=True, append_images=frames[1:], loop=img.info.get('loop', 0), duration=img.info.get('duration', 1))
+                out = "needsmorejpeg.gif"
+            else:
+                img = img.convert('RGB')
+                img.save(fn, "JPEG", quality=1)
+                out = "needsmore.jpeg"
 
-        if fn is not None:
-            await self.client.send_file(
-                channel,
-                fn,
-                filename=out,
-                content=choice(responses)
-            )
-
-        if os.path.exists(fn):
-            os.remove(fn)
+            if fn is not None:
+                await self.client.send_file(
+                    channel,
+                    fn,
+                    filename=out,
+                    content=choice(responses)
+                )
 
     @staticmethod
     def scale(w=200, h=200, limit=200, up=False):
@@ -225,7 +220,6 @@ class Fun(Plugin):
     async def get_image(self, message: discord.Message, args: tuple, arg=0, server=False, gif=True) -> Image.Image:
         server = message.server
         channel = message.channel
-        user = message.author
 
         types = [discord.Member]
         if server is True:
@@ -291,9 +285,7 @@ class Fun(Plugin):
              usage="!image bren [url|username|emoji]",
              global_cooldown=5)
     async def bren_thinking(self, message: discord.Message, args: tuple):
-        server = message.server
         channel = message.channel
-        user = message.author
 
         responses = [
             'Hmmmm... :thinking:',
@@ -357,9 +349,7 @@ class Fun(Plugin):
              usage="!image collage [url|username|emoji]",
              global_cooldown=5)
     async def collage_image(self, message: discord.Message, args: tuple):
-        server = message.server
         channel = message.channel
-        user = message.author
 
         await self.client.send_typing(channel)
 
@@ -391,9 +381,7 @@ class Fun(Plugin):
              usage="!image rotate <degrees> [url|username|emoji]",
              global_cooldown=3)
     async def rotate_image(self, message: discord.Message, args: tuple):
-        server = message.server
         channel = message.channel
-        user = message.author
 
         responses = [
             "Swoosh!",
@@ -440,17 +428,7 @@ class Fun(Plugin):
              usage="!image colour <colour> [user|url|emoji]",
              global_cooldown=3)
     async def image_colour(self, message: discord.Message, args: tuple):
-        server = message.server
         channel = message.channel
-        user = message.author
-
-        channels = {
-            'red'    : [0],
-            'yellow' : [0, 1],
-            'green'  : [1],
-            'blue'   : [2],
-            'purple' : [0, 2]
-        }
 
         await self.client.send_typing(channel)
         img = await self.get_image(message, args, arg=1)
@@ -523,9 +501,7 @@ class Fun(Plugin):
              usage="!image invert [user|url|emoji]",
              global_cooldown=3)
     async def image_invert(self, message: discord.Message, args: tuple):
-        server = message.server
         channel = message.channel
-        user = message.author
 
         await self.client.send_typing(channel)
         img = await self.get_image(message, args, arg=0)
@@ -587,7 +563,7 @@ class Fun(Plugin):
         if text == "" or text is None:
             return []
 
-        w, h = img.size
+        w, _ = img.size
 
         lines = text.split("\n")
         draw = ImageDraw.Draw(img)
@@ -612,9 +588,7 @@ class Fun(Plugin):
              usage=r"!meme [user|emoji|url] [NEWLINE <top text>] [NEWLINE <bottom_text>]",
              cooldown=3)
     async def make_meme(self, message: discord.Message, args: tuple):
-        server = message.server
         channel = message.channel
-        user = message.author
 
         await self.client.send_typing(channel)
 
@@ -680,9 +654,7 @@ class Fun(Plugin):
              usage="!image triggered [user|emoji|url]",
              global_cooldown=5)
     async def triggered_gif(self, message: discord.Message, args: tuple):
-        server = message.server
         channel = message.channel
-        user = message.author
 
         def rand():
             return int(((randint(0, 15)))) / 100
@@ -703,7 +675,7 @@ class Fun(Plugin):
             fg = fg.resize(self.scale(w, h, 500, True), resample=Image.BILINEAR)
         w, h = fg.size
 
-        for i in range(1, 20):
+        for _ in range(1, 20):
             im = Image.new("RGBA", (int(w*0.8), int(h*0.8)))
             im.paste(fg, (int(-w*1.1 * rand()), int(-h*1.1 * rand())))
 
@@ -725,9 +697,7 @@ class Fun(Plugin):
              description="create an animation of an image spinning",
              usage="!image spin [user|emoji|url")
     async def spinning_gif(self, message: discord.Message, args: tuple):
-        server = message.server
         channel = message.channel
-        user = message.author
 
         fg = await self.get_image(message, args, server=True, gif=False)
         if fg is None:
@@ -768,7 +738,6 @@ class Fun(Plugin):
              description="quote with an image",
              usage="!iq 12341241")
     async def image_quote(self, message: discord.Message, args: tuple):
-        server = message.server
         channel = message.channel
         user = message.author
 
@@ -781,7 +750,7 @@ class Fun(Plugin):
         msgstr  = user.name
 
         x1, y1 = draw.textsize(timestr, font=font)
-        x2, y2 = draw.textsize(msgstr, font=font)
+        x2, _ = draw.textsize(msgstr, font=font)
 
         bg = Image.new("RGBA", (x1+x2+25, y1+20))
         draw = ImageDraw.Draw(bg)

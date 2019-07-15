@@ -727,8 +727,11 @@ class Utility(Plugin):
         )
 
 
-
-font = ImageFont.truetype("arial.ttf", 18)
+try:
+    font = ImageFont.truetype("arial.ttf", 18)
+except:
+    font = ImageFont.load_default()
+    font.size = 18
 
 def generate_spoiler(text=""):
     warning = Image.new("RGB", (500, 40), "WHITE")
