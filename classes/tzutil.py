@@ -37,18 +37,16 @@ def find_timezones(z: str) -> tzinfo:
 
 
 def best_zone(z=""):
-    zones = find_timezones(z)
-    name = None
-
-    up = z.upper()
-    title = z.title()
+    up, title = z.upper(), z.title()
 
     if up in pytz.country_timezones:
         zones = [pytz.country_timezones.get(up)[0]]
     elif title in reverse_countries:
         zones = [pytz.country_timezones.get(reverse_countries.get(title))[0]]
+    else:
+        zones = find_timezones(z)
 
-    best = None
+    best, name = None, None
     if zones:
         if len(zones) == 1:
             best = zones[0]
