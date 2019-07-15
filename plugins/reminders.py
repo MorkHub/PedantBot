@@ -234,14 +234,16 @@ class Reminders(Plugin):
         user = message.author
         errors = []
 
+        args = (' '.join(args)).split()
+
         quantity = args[0]
         unit = args[1]
-        if len(args) == 2:
+        if len(args) == 3:
             label = args[2] or "no reason"
         else:
             label = "no reason"
 
-        label_safe = clean_string(args[1])
+        label_safe = clean_string(label)
 
         try:
             quantity = float(quantity)
