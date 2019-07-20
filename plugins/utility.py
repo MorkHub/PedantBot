@@ -490,41 +490,6 @@ class Utility(Plugin):
             embed=embed
         )
 
-    @command(pattern="^!spoiler ([0-9]+)(?: (.*))$",
-             description="apply a spoiler warning to a message",
-             usage="!spoiler <message ID>:[reason]")
-    async def add_spoiler(self, message: discord.Message, args: tuple):
-        channel = message.channel
-
-        try:
-            msg = await self.client.get_message(channel, args[0])
-        except discord.HTTPException:
-            await self.client.send_message(
-                channel,
-                "No message found by that ID"
-            )
-            return
-
-        reason = args[1]
-
-        usr = msg.author
-
-        img = generate_spoiler("{}: {}".format(
-            msg.author,
-            msg.clean_content
-        ))
-
-        await self.client.send_file(
-            channel,
-            img,
-            content="**{}**'s message has been marked as a spoiler for: `{}`".format(
-                usr,
-                reason or 'No reason given'
-            )
-        )
-
-        os.remove(img)
-
     @command(pattern="^!ip$",
              description="view IP address for bot",
              usage="!ip",
@@ -718,32 +683,3 @@ class Utility(Plugin):
             channel,
             embed=embed
         )
-
-
-try:
-    font = ImageFont.truetype("arial.ttf", 18)
-except:
-    font = ImageFont.load_default()
-    font.size = 18
-
-def generate_spoiler(text=""):
-    warning = Image.new("RGB", (500, 40), "WHITE")
-    spoiler = Image.new("RGB", (500, 40), "BLACK")
-    draw_1 = ImageDraw.Draw(warning)
-    draw_2 = ImageDraw.Draw(spoiler)
-
-    warning_text = "Spoiler Inside."
-    w, h = warning.size
-    t_w, t_h = draw_1.textsize(warning_text, font=font)
-    pad = h / 2 - t_h / 2
-    draw_1.text((pad, pad), warning_text, font=font, fill="BLACK")
-
-    w, h = spoiler.size
-    t_w, t_h = draw_2.textsize(text, font=font)
-    pad = h / 2 - t_h / 2
-    draw_2.text((pad, pad), text, font=font, fill="WHITE")
-
-    name = '{}.gif'.format(random(12))
-    mimwrite(name, [array(warning), array(spoiler)], "GIF-PIL", loop=1)
-
-    return name
