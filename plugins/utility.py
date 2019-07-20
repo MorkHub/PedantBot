@@ -415,26 +415,22 @@ class Utility(Plugin):
         )
 
     @command(pattern="^!age$",
-             description="view the ages of users in this server",
+             description="view the discord ages of users in this server",
              usage="!age")
     async def user_ages(self, message: discord.Message, *_):
         server = message.server
         channel = message.channel
-        _user = message.author
-        users = server.members
 
         def age(user=discord.User()):
             return discord.utils.snowflake_time(user.id)
 
         string = ''
-        users = sorted([x for x in users if not x.bot], key=age)
-        for n, user in enumerate(sorted(users, key=age)[:20]):
-            user.name = clean_string(user.name)
-            string += '{n:>2}.  {d}**{user}**:`{user.id}` joined on `{date}`{d}\n'.format(
+        users = sorted([x for x in server.members if not x.bot], key=age)
+        for n, user in enumerate(users[:20]):
+            string += '{n:>2}.  {user.mention}: joined on `{date}`\n'.format(
                 n=n + 1,
                 user=user,
-                d="__" if user == _user else '',
-                date=age(user).strftime('%d %B %Y @ %I:%M%p')
+                date=age(user).strftime(DATETIME_FORMAT)
             )
 
         embed = discord.Embed(
