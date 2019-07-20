@@ -1,4 +1,8 @@
 import logging
+import discord
+import datetime
+import urllib
+import requests
 import os
 
 import aioredis
@@ -8,8 +12,8 @@ from imageio import mimwrite
 from numpy import array
 from classes.plugin import Plugin
 
-from decorators import *
-from util import *
+from decorators import command
+from util import get_object, DATETIME_FORMAT, remaining_time, has_permission, avatar, clean_string, truncate
 import socket
 
 log = logging.getLogger('pedantbot')
@@ -128,7 +132,6 @@ class Utility(Plugin):
              description="view a user's avatar",
              usage="!avatar [user|server]")
     async def view_avatar(self, message: discord.Message, args: tuple):
-        server = message.server  # type: discord.Server
         channel = message.channel  # type: discord.Channel
         user = message.author  # type: discord.Member
 
@@ -282,7 +285,6 @@ class Utility(Plugin):
              description="list permissions available to a user",
              usage="!permissions [user]")
     async def list_perms(self, message: discord.Message, args: tuple):
-        server = message.server
         channel = message.channel
         user = message.author
 
@@ -340,7 +342,7 @@ class Utility(Plugin):
                 inline=True
             )
 
-        msg = await self.client.send_message(
+        await self.client.send_message(
             channel,
             embed=embed
         )
@@ -371,7 +373,7 @@ class Utility(Plugin):
         server = message.server
         channel = message.channel
 
-        humans = 0;
+        humans = 0
         bots = 0
         for member in server.members:
             if member.bot:
@@ -448,7 +450,6 @@ class Utility(Plugin):
              description="quote a message in the server",
              usage="!quotemsg <message id>", cooldown=2)
     async def quote_message(self, message: discord.Message, args: tuple):
-        server = message.server
         channel = message.channel
         user = message.author
 
@@ -493,9 +494,7 @@ class Utility(Plugin):
              description="apply a spoiler warning to a message",
              usage="!spoiler <message ID>:[reason]")
     async def add_spoiler(self, message: discord.Message, args: tuple):
-        server = message.server
         channel = message.channel
-        user = message.author
 
         try:
             msg = await self.client.get_message(channel, args[0])
@@ -666,9 +665,7 @@ class Utility(Plugin):
              description="check where a short URL redirects to",
              usage="!checkurl <website address>")
     async def check_url(self, message: discord.Message, args: tuple):
-        server = message.server
         channel = message.channel
-        user = message.author
 
         session = requests.Session()
         session.max_redirects = 1
@@ -687,7 +684,7 @@ class Utility(Plugin):
 
         redirect = res.is_redirect
 
-        for redirects in range(10):
+        for _ in range(10):
             if res.is_redirect:
                 res = session.head(long, allow_redirects=True)
             else:
