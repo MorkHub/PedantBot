@@ -24,6 +24,7 @@ class TempFile:
 
     def __enter__(self, *args):
         p = self.path()
+        os.makedirs(ROOT_PATH, exist_ok=True)
         if not os.path.exists(p):
             f = open(p, "w+")
             f.close()

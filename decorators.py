@@ -165,6 +165,9 @@ def bg_task(sleep_time, ignore_errors=True):
 
     return actual_decorator
 
+class Task:
+    HOURLY = 3600
+    DAILY = 86400
 
 
 def nsfw(func):

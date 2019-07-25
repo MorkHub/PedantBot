@@ -1,10 +1,17 @@
+import logging
+import discord
 import uuid
 import json
+import datetime
+import asyncio
 
 from plugins.time import Time
 from classes.plugin import Plugin
-from decorators import *
-from util import *
+from decorators import command
+from util import has_permission, clean_string, get_object, confirm_dialog,  \
+    DATETIME_FORMAT, search, truncate
+
+from typing import Tuple
 
 log = logging.getLogger('pedantbot')
 
@@ -13,16 +20,15 @@ class Admin(Plugin):
     plugin_name = "administration"
     config_vars = {
         'thresholds': "JSON",
-
     }
 
     def __init__(self, *args, **kwargs):
         Plugin.__init__(self, *args, **kwargs)
 
-    @command(pattern="^!status ?(.*)$",
+    @command(pattern=r"^!status ?(.*)$",
              description="set bot's playing status (owner only)",
              usage="!status [message]")
-    async def set_status(self, message: discord.Message, args: tuple):
+    async def set_status(self, message: discord.Message, args: Tuple[str, str]):
         server = message.server  # type: discord.Server
         channel = message.channel  # type: discord.Channel
         user = message.author  # type: discord.Member
@@ -55,11 +61,11 @@ class Admin(Plugin):
         )
 
     # Warnings & Bans
-    @command(pattern='^\.warn (.*) for (.*)$',
+    @command(pattern=r'^\.warn (.*) for (.*)$',
              description="warn a user, optionally provide a reason",
              usage=".warn <user> for [reason]",
              requires_permissions="ban_members")
-    async def warn_user(self, message: discord.Message, args: tuple):
+    async def warn_user(self, message: discord.Message, args: Tuple[str, str]):
         server = message.server  # type: discord.Server
         channel = message.channel
         user = message.author
@@ -217,10 +223,10 @@ class Admin(Plugin):
                 "Cancelled. No action has been taken."
             )
 
-    @command(pattern="^\.delwarn ([0-9]+) for (.*)$",
+    @command(pattern=r'^\.delwarn ([0-9]+) for (.*)$',
              description="clear a warning for a user",
              usage=".delwarn <num> for <user>")
-    async def remove_warning(self, message: discord.Message, args: tuple):
+    async def remove_warning(self, message: discord.Message, args: Tuple[str, str]):
         server = message.server
         channel = message.channel
         user = message.author
@@ -292,10 +298,10 @@ class Admin(Plugin):
                 "Warning Cleared"
             )
 
-    @command(pattern='^\.(?:warns|warnlist)(?: (.*))?$',
+    @command(pattern=r'^\.(?:warns|warnlist)(?: (.*))?$',
              description="list warnings for user or self",
              usage='.warnlist <user>')
-    async def list_warnings(self, message: discord.Message, args: tuple):
+    async def list_warnings(self, message: discord.Message, args: Tuple[str, str]):
         server = message.server
         channel = message.channel
         user = message.author
@@ -390,10 +396,10 @@ class Admin(Plugin):
             embed=embed
         )
 
-    @command(pattern='^\.warn threshold (kick|ban) ([0-9]+)$',
+    @command(pattern=r'^\.warn threshold (kick|ban) ([0-9]+)$',
              description="set the warning threshold for kick/ban",
              usage=".warn threshold <kick|ban> <# of warnings>")
-    async def set_threshold(self, message: discord.Message, args: tuple):
+    async def set_threshold(self, message: discord.Message, args: Tuple[str, str]):
         server = message.server
         channel = message.channel
         user = message.author
@@ -409,10 +415,9 @@ class Admin(Plugin):
         await self.client.send_typing(channel)
 
         storage = await self.get_storage(server)
-        thresholds = await storage.get('thresholds') or '{"kick":3,"ban":5}'
-        thresholds = json.loads(thresholds)
+        thresholds = json.loads(await storage.get('thresholds') or '{"kick":3,"ban":5}')
 
-        action, threshold = args  # type: str
+        action, threshold = args
         changed = None
 
         if isinstance(threshold, int) or (isinstance(threshold, str) and threshold.isnumeric()):
@@ -435,7 +440,7 @@ class Admin(Plugin):
                 "Threshold for `{}` could not be changed.".format(action)
             )
 
-    @command(pattern="^\.warn threshold$",
+    @command(pattern=r"^\.warn threshold$",
              description="view the current warning threshold for kick/ban",
              usage=".warn threshold")
     async def view_thresholds(self, message: discord.Message, *_):
@@ -459,10 +464,10 @@ class Admin(Plugin):
         )
         return
 
-    @command(pattern='^\.kick (.+) (?:for (.*))?$',
+    @command(pattern=r'^\.kick (.+) (?:for (.*))?$',
              description="kick user from the current server",
              usage=".kick <user> [for <reason>]")
-    async def kick_user(self, message: discord.Message, args: tuple):
+    async def kick_user(self, message: discord.Message, args: Tuple[str, str]):
         server = message.server  # type: discord.Server
         channel = message.channel  # type: discord.Channel
         user = message.author  # type: discord.Member
@@ -568,7 +573,7 @@ class Admin(Plugin):
                 "Cancelled. No action has been taken."
             )
 
-    @command(pattern="^\.(?:banlist|bans)$",
+    @command(pattern=r"^\.(?:banlist|bans)$",
              description="list users who have been banned form this server",
              usage=".bans")
     async def list_bans(self, message: discord.Message, *_):
@@ -604,10 +609,10 @@ class Admin(Plugin):
             embed=embed
         )
 
-    @command(pattern="^\.clean ([0-9]*)$",
+    @command(pattern=r"^\.clean ([0-9]*)$",
              description="clean up bot messages",
              usage=".clean <max # of messages>")
-    async def clean_channel(self, message: discord.Message, args: tuple):
+    async def clean_channel(self, message: discord.Message, args: Tuple[str, str]):
         channel = message.channel  # type: discord.Channel
 
         limit = 20
@@ -623,10 +628,10 @@ class Admin(Plugin):
             limit=limit
         )
 
-    @command(pattern="^\.purge ([0-9]+)(?: from (.*))?$",
+    @command(pattern=r"^\.purge ([0-9]+)(?: from (.*))?$",
              description="purge messages from channel",
              usage=".purge <max # of messages> [from <user>]")
-    async def purge_channel(self, message: discord.Message, args: tuple):
+    async def purge_channel(self, message: discord.Message, args: Tuple[str, str]):
         channel = message.channel  # type: discord.Channel
         user = message.author  # type: discord.Member
 
@@ -669,14 +674,15 @@ class Admin(Plugin):
             )
             return
 
+
         if not target:
-            def check(*_): return True
+            check = lambda *_: True
         elif target == "bots":
-            def check(m): return m.author.bot
+            check = lambda m: m.author.bot
         elif isinstance(target, discord.Role):
-            def check(m): return target in m.author.roles
+            check = lambda m: target in m.author.roles
         else:
-            def check(m): return m.author == target
+            check = lambda m: m.author == target
 
         deleted = 0
         try:
@@ -706,10 +712,10 @@ class Admin(Plugin):
         except discord.HTTPException:
             pass
 
-    @command(pattern="^\.iam add (.+?)(?: as (.*))?$",
+    @command(pattern=r"^\.iam add (.+?)(?: as (.*))?$",
              description="define self-assignable role",
              usage=".iam add <role> [as <name>]")
-    async def add_iam_role(self, message: discord.Message, args: tuple):
+    async def add_iam_role(self, message: discord.Message, args: Tuple[str, str]):
         server = message.server
         channel = message.channel
         user = message.author
@@ -787,10 +793,10 @@ class Admin(Plugin):
             msg
         )
 
-    @command(pattern="^\.iam del (.+)$",
+    @command(pattern=r"^\.iam del (.+)$",
              description="delete a self-assignable role",
              usage=".iam del <role>")
-    async def del_iam_role(self, message: discord.Message, args: tuple):
+    async def del_iam_role(self, message: discord.Message, args: Tuple[str, str]):
         server = message.server
         channel = message.channel
         user = message.author
@@ -828,10 +834,10 @@ class Admin(Plugin):
             msg
         )
 
-    @command(pattern="^\.iam (?!add|del|list|not)(.+)$",
+    @command(pattern=r"^\.iam (?!add|del|list|not)(.+)$",
              description="add a self-assignable role to yourself",
              usage=".iam <role>")
-    async def iam_role(self, message: discord.Message, args: tuple):
+    async def iam_role(self, message: discord.Message, args: Tuple[str, str]):
         server = message.server
         channel = message.channel
         user = message.author
@@ -861,10 +867,10 @@ class Admin(Plugin):
             await asyncio.sleep(5)
             await self.client.delete_message(msg)
 
-    @command(pattern="^\.iam not (.+)$",
+    @command(pattern=r"^\.iam not (.+)$",
              description="remove self-assignable role from yourself",
              usage=".iam not <role>")
-    async def iam_not_role(self, message: discord.Message, args: tuple):
+    async def iam_not_role(self, message: discord.Message, args: Tuple[str, str]):
         server = message.server
         channel = message.channel
         user = message.author
@@ -894,7 +900,7 @@ class Admin(Plugin):
             await asyncio.sleep(5)
             await self.client.delete_message(msg)
 
-    @command(pattern="^\.iam list$",
+    @command(pattern=r"^\.iam list$",
              description="view self-assignable roles",
              usage=".iam list")
     async def list_iam_roles(self, message: discord.Message, *_):
@@ -1033,13 +1039,23 @@ class Admin(Plugin):
                 if user is not None:
                     await self.client.send_message(user, 'Added to {server.owner}\'s `{server}`'.format(server=server))
 
-    @command(pattern="^\.who(?:has|can) (.*?)(?: in (.*))?$",
+    @command(pattern=r"^\.who(?:has|can) (.*?)(?: in (.*))?$",
              description="find out which users have a specific permission",
              usage=".whohas <permission> [in <channel>]")
-    async def members_with_permission(self, message: discord.Message, args: tuple):
+    async def members_with_permission(self, message: discord.Message, args: Tuple[str, str]):
         server = message.server
         channel = message.channel
         user = message.author
+
+        if not has_permission(user, "manage_roles"):
+            await self.client.send_message(
+                channel,
+                "{user.mention}, you do not have permission to warn users.\n"
+                "Requires `manage_roles`.".format(
+                    user=user
+                )
+            )
+            return
 
         permission_names = [x[0] for x in discord.Permissions()]
         permissions = [search(x.strip().replace(' ', '_'), permission_names) for x in args[0].split(",")]

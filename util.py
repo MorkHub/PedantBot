@@ -2,7 +2,7 @@ import logging
 import datetime
 import discord
 import re
-from random import *
+from random import randint, choice
 import urllib.request
 import requests
 import io
@@ -72,13 +72,13 @@ def remaining_time(
     else:
         now = datetime.datetime.now()
 
-    if d > now:
-        prefix = "in"
-        suffix = ""
-    else:
-        d, now = now, d
-        prefix = ""
-        suffix = "ago"
+    # if d > now:
+    #     prefix = "in"
+    #     suffix = ""
+    # else:
+    #     d, now = now, d
+    #     prefix = ""
+    #     suffix = "ago"
 
     diff = d - now
     seconds = abs(diff.total_seconds())
@@ -203,7 +203,8 @@ def clean_string(unclean, whitelist="", blacklist="`*_~", remove="") -> str:
 
 async def confirm_dialog(client: discord.Client, channel: discord.Channel, user: discord.User,
                          title: str = "Are you sure?", description: str = "", options: tuple = ('y', 'n'),
-                         author: dict = None, colour: discord.Color = discord.Color.default(), timeout=30):
+                         author: dict = None, colour: discord.Color = discord.Color.default(), timeout=30) \
+                             -> discord.Message:
     """
     :param client: discord.Client
     :param channel: discord.Channel
@@ -372,7 +373,7 @@ def roll_dice(inp: str = "") -> list:
             string = "{}d{}{:+}".format(n, d, m)
 
             rolls = []
-            for i in range(n):
+            for _ in range(n):
                 rolls.append(randint(1, d) + m)
 
             roll_sum = sum(dice)
@@ -434,7 +435,7 @@ def redis_address(inp=''):
 def random(length=1):
     string = ""
     if length > 0:
-        for i in range(length):
+        for _ in range(length):
             char = chr(randint(97, 122))
             if randint(0, 1) == 1:
                 char = char.upper()
@@ -561,5 +562,5 @@ async def get_object(cln: discord.Client, name: str, message: discord.Message = 
 
     return target
 
-def fancy_join(d):
-    return ", ".join([str(x) for x in data[:-2]] + [" and ".join(str(x) for x in data[-2:])])
+def fancy_join(d: list):
+    return ", ".join([str(x) for x in d[:-2]] + [" and ".join(str(x) for x in d[-2:])])

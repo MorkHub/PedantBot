@@ -1,9 +1,12 @@
+import logging
 import wikipedia
 import urbandict
 from classes.plugin import Plugin
 
 from decorators import *
 from util import *
+
+from typing import Tuple
 
 log = logging.getLogger('pedantbot')
 

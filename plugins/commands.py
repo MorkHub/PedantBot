@@ -1,12 +1,15 @@
-# import discord
-# import logging
+import logging
+import discord
 import datetime
 import math
 
 from classes.plugin import Plugin
+from plugins.time import Time
 from decorators import command
-from util import *
-from .time import Time
+from util import find_match, has_permission, confirm_dialog, printf, TIME_FORMAT, DATE_FORMAT, DATETIME_FORMAT
+
+
+from typing import Tuple
 
 log = logging.getLogger('pedantbot')
 
@@ -14,7 +17,7 @@ log = logging.getLogger('pedantbot')
 class Commands(Plugin):
     plugin_name = 'user commands'
 
-    async def response(self, string: str, message: discord.Message, args: tuple = ()):
+    async def response(self, string: str, message: discord.Message, args: Tuple[str] = ()):
         server = message.server
         channel = message.channel
         user = message.author
@@ -47,7 +50,6 @@ class Commands(Plugin):
 
         server = message.server
         channel = message.channel
-        user = message.author
 
         storage = await self.get_storage(server)
 
@@ -70,11 +72,21 @@ class Commands(Plugin):
     @command(pattern='^!noacr (.+)$',
              description='disable commands in a channel',
              usage='!noacr #general')
-    async def disable_commands(self, message, args):
+    async def disable_commands(self, message: discord.Message, args: Tuple[str]):
         server = message.server
         channel = message.channel
         user = message.author
         storage = await self.get_storage(server)
+
+        if not has_permission(user.permissions_in(channel), "manage_channels"):
+            await self.client.send_message(
+                channel,
+                "{user.mention}, you do not have permission to warn users.\n"
+                "Requires `manage_channels`.".format(
+                    user=user
+                )
+            )
+            return
 
         chans = []
         if message.channel_mentions:
@@ -87,7 +99,7 @@ class Commands(Plugin):
     @command(pattern=r'^!acr ("?)?([^"]*)\1 ("?)?([^"]*)\3$',
              description="add or edit a custom reaction",
              usage='!acr "<trigger>" "<response>"')
-    async def add_command(self, message: discord.Message, args: tuple):
+    async def add_command(self, message: discord.Message, args: Tuple[str, str, str, str]):
         if message.author.bot:
             return
         if message.author.id == self.client.user.id:
@@ -143,7 +155,7 @@ class Commands(Plugin):
     @command(pattern='^!lcr(?: ([0-9]+))?$',
              description='list reactions for this server',
              usage='!lcr')
-    async def list_reactions(self, message: discord.Message, args: tuple = ()):
+    async def list_reactions(self, message: discord.Message, args: Tuple[str] = ()):
         server = message.server
         channel = message.channel
 
@@ -190,10 +202,10 @@ class Commands(Plugin):
     @command(pattern='^!dcr ([0-9]+)$',
              description="delete a custom reaction",
              usage="!dcr <ID>")
-    async def delete_command(self, message: discord.Message, args: tuple):
+    async def delete_command(self, message: discord.Message, args: Tuple[str]):
         """
         :param message: discord.Message
-        :param args: tuple[str]
+        :param args: Tuple[str][str]
         :return:
         """
         server = message.server

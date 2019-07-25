@@ -10,6 +10,7 @@ from decorators import command, bg_task, Task
 from util import has_permission, DATE_FORMAT, clean_string
 from datetime import date, datetime, timedelta
 from dateutil.rrule import rrule, YEARLY
+from dateutil.relativedelta import relativedelta
 
 from typing import Dict, List, Tuple
 
@@ -25,16 +26,16 @@ class Birthdays(Plugin):
         Plugin.__init__(self, *args, **kwargs)
         self.failed_servers = []
 
-    async def get_birthday(self, user: discord.User):
+    async def get_birthday(self, user: discord.User) -> datetime:
         storage = self.db.redis
-        
+
         if isinstance(user, discord.User):
             user_id = user.id
         else:
             user_id = str(user)
 
         ts = await storage.get("Birthdays:global:birthday.{}".format(user_id))
-        dt = None 
+        dt = None
 
         if ts:
             try:
@@ -93,13 +94,14 @@ class Birthdays(Plugin):
 
                 if dt not in birthdays:
                     birthdays[dt] = []
-                    
+
                 birthdays[dt].append(member)
 
         return birthdays
 
     @staticmethod
-    def ordinal(n):
+    def ordinal(n: int) -> str:
+        n = int(n)
         return "{:.0f}{}".format(n,"tsnrhtdd"[(n/10%10!=1)*(n%10<4)*n%10::4])
 
     @command(pattern="^!(bdd|birthdaydisable)",
@@ -159,7 +161,7 @@ class Birthdays(Plugin):
                 await self.client.send_message(channel, "{}, I cannot send messages in that channel".format(user.mention))
             except:
                 pass
-            
+
 
     @command(pattern="^!birthdays(?: (all))?$",
              description="list birthdays in this server",
@@ -168,9 +170,6 @@ class Birthdays(Plugin):
         server = message.server  # type: discord.Server
         channel = message.channel  # type: discord.Channel
         user = message.author  # type: discord.Member
-
-        storage = self.db.redis
-        known_users = await storage.keys("Birthdays:global:birthday.*")
 
         if user.id == "154542529591771136" and args[0] == "all":
             birthdays = await self.get_birthdays(None)
@@ -185,8 +184,6 @@ class Birthdays(Plugin):
         now = datetime.now()
         today = now.date()
 
-        from dateutil.rrule import rrule, YEARLY
-
         def d(dt):
             rule = rrule(YEARLY, dtstart=dt)
             return rule.after(now)
@@ -196,35 +193,42 @@ class Birthdays(Plugin):
             members = birthdays.get(dt, [])
             dt = d(dt).date()
 
-            age = dt.year - born.year
-
-            delta = dt - today
-            days = delta.days
-
-            if days < -7:
-                dt = date(today.year + 1, dt.month, dt.day)
-                delta = dt - today
-                days = delta.days
-                age = dt.year - born.year
-
-            if dt == today:
-                until = "today"
-            elif days < 0:
-                if days == -1:
-                    until = "yesterday"
-                else:
-                    until = "{} days ago".format(abs(days))
+            if dt < today:
+                delta = relativedelta(today, dt)
             else:
-                if days == 1:
+                delta = relativedelta(dt, today)
+
+            if delta.days < -7:
+                dt += relativedelta(years=+1)
+                delta = relativedelta(dt, today)
+
+            age = dt.year - born.year
+            future = dt > today
+
+            years = abs(delta.years)
+            months = abs(delta.months)
+            days = abs(delta.days)
+
+            until = ""
+            if days == 0:
+                until = "today"
+            if days == 1:
+                if delta.days < 0:
+                    until = "yesterday"
+                elif delta.days > 0:
                     until = "tomorrow"
-                else:
-                    if days > 40:
-                        fmt = "{} months, {} days".format(days//31, days)
-                    until = "in {} days".format(days)
+            else:
+                o = []
+
+                for unit, quantity in [('year', years), ('month', months), ('day', days)]:
+                    if quantity > 0:
+                        o.append("{} {}".format(quantity, unit) + ("s" if quantity != 1 else ""))
+
+                until = ("in {}" if future else "{} ago").format(", ".join(o))
 
             embed.add_field(
                 name="{} ({})".format(dt.strftime(DATE_FORMAT), until),
-                value='\n'.join("{}'s {}".format(member.mention, self.ordinal(age)) for member in members),
+                value='\n'.join("{}'s {}".format(member.mention, self.ordinal(age).replace("0th", "birth")) for member in members),
                 inline=False
             )
 
@@ -235,7 +239,6 @@ class Birthdays(Plugin):
              description="show your birthday",
              usage="!birthday")
     async def show_birthday(self, message: discord.Message, args: tuple):
-        server = message.server  # type: discord.Server
         channel = message.channel  # type: discord.Channel
         user = message.author  # type: discord.Member
 
@@ -257,7 +260,7 @@ class Birthdays(Plugin):
         server = message.server  # type: discord.Server
         channel = message.channel  # type: discord.Channel
         user = message.author  # type: discord.Member
- 
+
         storage = self.db.redis
 
         member = None
@@ -311,7 +314,7 @@ class Birthdays(Plugin):
         server = message.server  # type: discord.Server
         channel = message.channel  # type: discord.Channel
         user = message.author  # type: discord.Member
-  
+
         storage = self.db.redis
 
         if not user == (await self.client.application_info()).owner:
@@ -452,11 +455,13 @@ class Birthdays(Plugin):
                     if channel:
                         body = ""
                         birthdays = await self.get_birthdays(server, after=monday, before=sunday)
+                        birthdays = list(birthdays.items())  # type: List[Tuple[datetime, List[discord.Member]]
 
                         if not birthdays:
                             continue
 
-                        for dt, members in birthdays.items():
+                        for dt, y in birthdays:
+                            members = y  # type: List[discord.Member]
                             age = today.year - dt.year
                             bd = date(today.year, dt.month, dt.day)
 
@@ -477,12 +482,12 @@ class Birthdays(Plugin):
             log.info("Already checked weekly birthdays (w/c {})".format(monday.strftime(DATE_FORMAT)))
 
 
-    @bg_task(3600)
+    @bg_task(Task.HOURLY)
     async def daily_announcement(self):
         storage = self.db.redis
         now = datetime.now()
         today = now.date()
- 
+
         if now.hour < 7:
             wait = (datetime(now.year, now.month, now.day, 7) - now).total_seconds()
             if wait <= 3600:
@@ -499,28 +504,27 @@ class Birthdays(Plugin):
             pass
 
         last_check = date.fromtimestamp(last_check_ts or 0)
- 
-        if last_check < today or self.failed_servers:
+
+        servers = []
+        if last_check < today:
+            servers.extend(await storage.smembers("Birthdays:global:daily_announce_enabled") or [])
+        if self.failed_servers:
+            servers.extend(self.failed_servers)
+
+        if servers:
             log.info("Checking daily birthdays ({})".format(today.strftime(DATE_FORMAT)))
-            servers = []
-            if last_check < today:
-                servers.extend(await storage.smembers("Birthdays:global:daily_announce_enabled") or [])
-            if self.failed_servers:
-                servers.extend(self.failed_servers)
 
             log.info("Will announce birthdays in {} servers.".format(len(servers)))
 
-            self.failed_servers = []
-
             if len(servers) == 0:
                 log.info("Daily announcement disabled in all servers")
- 
+
             for server_id in servers:
                 server = self.client.get_server(server_id)
                 if not server:
                     log.warn("Server {} not found".format(server_id))
                     continue
- 
+
                 announce_channel = await storage.get("Birthdays:{}:announce_channel".format(server_id))
                 if announce_channel is None:
                    continue
@@ -529,24 +533,25 @@ class Birthdays(Plugin):
                     channel = server.get_channel(announce_channel)
                     if channel:
                         body = "Happy Birthday today!\n"
-                        birthdays = await self.get_birthdays(server, on=today)
+                        birthdays = await self.get_birthdays(server, on=today)  # type: dict
 
                         if not birthdays:
-                            continue 
+                            continue
 
                         for dt, members in birthdays.items():
                             age = today.year - dt.year
- 
+
                             body += "{} will be **{:.0f}** today!\n".format(
                                 ', '.join(m.mention for m in members),
                                 age
                             )
- 
+
                         try:
                             await self.client.send_message(channel, body)
+                            self.failed_servers.remove(server_id)
                         except Exception as e:
                             log.exception(e)
-                            self.failed_servers.add(server_id)
+                            self.failed_servers.append(server_id)
                 except Exception as e:
                     log.warning("Could not announce birthdays in server {}".format(server_id))
                     log.exception(e)
