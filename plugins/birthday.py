@@ -1,11 +1,17 @@
 import logging
+import discord
+import asyncio
 import re
+import json
 
 from classes.plugin import Plugin
 
-from decorators import *
-from util import *
+from decorators import command, bg_task, Task
+from util import has_permission, DATE_FORMAT, clean_string
 from datetime import date, datetime, timedelta
+from dateutil.rrule import rrule, YEARLY
+
+from typing import Dict, List, Tuple
 
 log = logging.getLogger('pedantbot')
 
@@ -38,11 +44,14 @@ class Birthdays(Plugin):
 
         return dt
 
-    async def get_birthdays(self, server, on = None, after = None, before = None):
+    async def get_birthdays(self, server, on = None, after = None, before = None) \
+            -> Dict[datetime, List[discord.Member]]:
         storage = self.db.redis
         known_users = await storage.keys("Birthdays:global:birthday.*")
+        permissions = json.loads(await storage.get("Birthdays.{}:permissions".format(server.id)) or "{}")
+        print(permissions)
         today = date.today()
-        
+
         if on is not None:
             cast = type(on)
         elif before is not None:
@@ -66,6 +75,9 @@ class Birthdays(Plugin):
                 member = server.get_member(user_id)
 
             if member is not None:
+                if not permissions.get(member.id, True):
+                    continue
+
                 dt = cast.fromtimestamp(float(await storage.get(key)))
                 ty = cast(today.year, dt.month, dt.day)
 
@@ -271,10 +283,9 @@ class Birthdays(Plugin):
              description="set your birthday",
              usage="!setbirthday DD/MM/YYYY")
     async def set_birthday(self, message: discord.Message, args: tuple):
-        server = message.server  # type: discord.Server
         channel = message.channel  # type: discord.Channel
         user = message.author  # type: discord.Member
- 
+
         storage = self.db.redis
         dt = None
 
@@ -313,26 +324,92 @@ class Birthdays(Plugin):
             return
 
         member = server.get_member_named(args[1]) or await self.client.get_user_info(args[1])
- 
+
         parts = re.match(r"([0-9]{1,2})[\/-]([0-9]{1,2})[\/-]([0-9]{4})", args[0])
         if parts:
             try:
                 day = int(parts.group(1))
                 month = int(parts.group(2))
                 year = int(parts.group(3))
-                               
+
                 dt = datetime(year, month, day)
             except:
                 await self.client.send_message(channel, "{}, Invalid date format, please use a valid date the form `DD/MM/YYYY`)")
                 return
- 
+
             timestamp = dt.timestamp()
             await storage.set("Birthdays:global:birthday.{}".format(member.id), timestamp)
             await self.client.send_message(channel, "Set `{}`'s birthday as `{}`".format(str(member), dt.strftime(DATE_FORMAT)))
 
+    @command(pattern="^!(?:b|birthday) opt (in|out)$",
+             description="set someone else's birthday",
+             usage="!birthday opt [in|out]")
+    async def birthday_opt_in(self, message: discord.Message, args: tuple):
+        server = message.server  # type: discord.Server
+        channel = message.channel  # type: discord.Channel
+        user = message.author  # type: discord.Member
+
+        storage = await self.get_storage(server)
+
+        announcement_permission = args[0] == "in"
+        message = "will" if announcement_permission else "will not"
+
+        permissions = json.loads(await storage.get("permissions") or "{}")
+        permissions[user.id] = announcement_permission
+
+        await storage.set("permissions", json.dumps(permissions))
+        await self.client.send_message(
+            channel,
+            "{}, your birthday {} be announced in this server from now on.".format(
+                user.mention, message
+            ))
+
+    @command(pattern="^!age real$",
+             description="view the ages of users in this server",
+             usage="!age real")
+    async def user_ages(self, message: discord.Message, *_):
+        server = message.server
+        channel = message.channel
+        user = message.author
+
+        today = datetime.today()
+        birthdays = await self.get_birthdays(server)
+        members = []
+        for dt, _members in birthdays.items():
+            if dt > today:
+                continue
+            for member in _members:
+                members.append((member, dt))
+
+        def age(dt):
+            return today.year - dt.year
+
+        string = ''
+        members = sorted(members, key=lambda x: -age(x[1]))
+        for n, birthday in enumerate(members[:20]):
+            member, dt = birthday
+            member.name = clean_string(member.name)
+            string += '{n:>2}.  {user}: {age} on `{date}`\n'.format(
+                n=n + 1,
+                user=member.mention,
+                age=age(dt),
+                date=dt.strftime(DATE_FORMAT)
+            )
+
+        embed = discord.Embed(
+            title="Age of users in {server.name}".format(server=message.server),
+            color=discord.Colour.blue(),
+            description=string
+        )
+
+        await self.client.send_message(
+            channel,
+            embed=embed
+        )
+
     # background tasks
 
-    @bg_task(3600)
+    @bg_task(Task.HOURLY)
     async def weekly_announcement(self):
         storage = self.db.redis
         now = datetime.now()
