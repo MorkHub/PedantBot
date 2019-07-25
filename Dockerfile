@@ -1,32 +1,34 @@
-FROM ubuntu:14.04
+FROM python:3.6
 
-MAINTAINER MorkHub, https://github.com/MorkHub/PedantBot
+# Avoid warnings by switching to noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
-#Install dependencies
-RUN sudo apt-get update \
-    && sudo apt-get install software-properties-common -y \
-    && sudo add-apt-repository ppa:fkrull/deadsnakes -y \
-    && sudo add-apt-repository ppa:mc3man/trusty-media -y \
-    && sudo apt-get update -y \
-    && sudo apt-get install build-essential unzip -y \
-    && sudo apt-get install python3.5 python3.5-dev -y \
-    && sudo apt-get install ffmpeg -y \
-    && sudo apt-get install libopus-dev -y \
-    && sudo apt-get install libffi-dev -y
+# Copy requirements.txt to a temp location so we can install it.
+COPY requirements.txt* /tmp/pip-tmp/
 
-#Install Pip
-RUN sudo apt-get install wget \
-    && wget https://bootstrap.pypa.io/get-pip.py \
-    && sudo python3 get-pip.py
+# Configure apt and install packages
+RUN apt-get update \
+    && apt-get -y install --no-install-recommends apt-utils 2>&1 \
+    #
+    # Verify git, process tools, lsb-release (common in install instructions for CLIs) installed
+    && apt-get -y install git procps lsb-release \
+    #
+    # Install pylint
+    && pip install pylint \
+    #
+    # Update Python environment based on requirements.txt (if present)
+    && if [ -f "/tmp/pip-tmp/requirements.txt" ]; then pip install -r /tmp/pip-tmp/requirements.txt; fi \
+    && rm -rf /tmp/pip-tmp \
+    #
+    # Clean up
+    && apt-get autoremove -y \
+    && apt-get clean -y \
+    && rm -rf /var/lib/apt/lists/*
 
-#Add musicBot
-ADD . /pedantbot
+# Switch back to dialog for any ad-hoc use of apt-get
+# ENV DEBIAN_FRONTEND=dialog
+
+COPY . /pedantbot
 WORKDIR /pedantbot
 
-#Install PIP dependencies
-RUN sudo pip install -r requirements.txt
-
-CMD run.sh
-
-api='77feaa99be7a879a3d931f730a2e96b6'
-secret='cd5a3e82334ed4f23705916526439e38'
+CMD python3 ./bot.py
