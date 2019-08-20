@@ -7,7 +7,7 @@ import json
 from classes.plugin import Plugin
 
 from decorators import command, bg_task, Task
-from util import has_permission, DATE_FORMAT, clean_string
+from util import has_permission, DATE_FORMAT, clean_string, fancy_join
 from datetime import date, datetime, timedelta
 from dateutil.rrule import rrule, YEARLY
 from dateutil.relativedelta import relativedelta
@@ -212,11 +212,10 @@ class Birthdays(Plugin):
             until = ""
             if days == 0:
                 until = "today"
-            if days == 1:
-                if delta.days < 0:
-                    until = "yesterday"
-                elif delta.days > 0:
-                    until = "tomorrow"
+            if delta == relativedelta(days=+1):
+                until = "tomorrow"
+            elif delta == relativedelta(days=-1):
+                until = "yesterday"
             else:
                 o = []
 
@@ -224,7 +223,7 @@ class Birthdays(Plugin):
                     if quantity > 0:
                         o.append("{} {}".format(quantity, unit) + ("s" if quantity != 1 else ""))
 
-                until = ("in {}" if future else "{} ago").format(", ".join(o))
+                until = ("in {}" if future else "{} ago").format(fancy_join(o))
 
             embed.add_field(
                 name="{} ({})".format(dt.strftime(DATE_FORMAT), until),
@@ -511,6 +510,8 @@ class Birthdays(Plugin):
         if self.failed_servers:
             servers.extend(self.failed_servers)
 
+        await storage.set("Birthdays:global:last_check_daily", now.timestamp())
+
         if servers:
             log.info("Checking daily birthdays ({})".format(today.strftime(DATE_FORMAT)))
 
@@ -548,15 +549,14 @@ class Birthdays(Plugin):
 
                         try:
                             await self.client.send_message(channel, body)
-                            self.failed_servers.remove(server_id)
+                            if server_id in self.failed_servers:
+                                self.failed_servers.remove(server_id)
                         except Exception as e:
                             log.exception(e)
                             self.failed_servers.append(server_id)
                 except Exception as e:
                     log.warning("Could not announce birthdays in server {}".format(server_id))
                     log.exception(e)
-
-            await storage.set("Birthdays:global:last_check_daily", now.timestamp())
         else:
             log.info("Already checked daily birthdays ({})".format(last_check.strftime(DATE_FORMAT)))
 
