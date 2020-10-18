@@ -411,6 +411,31 @@ class Birthdays(Plugin):
 
     # background tasks
 
+#    WIP feature
+#
+#    @bg_task(TASK.HOURLY)
+#    async def update_birthday_lists(self):
+#        storage = self.db.redis
+#        now = datetime.now()
+#        today = now.date()
+#
+#        last_check_ts = 0
+#        try:
+#            last_check_ts = float(await storage.get("Birthdays:global:last_update"))
+#        except:
+#            pass
+#
+#        last_check = date.fromtimestamp(last_check_ts or 0)
+#
+#        if last_check < today:
+#            messages_to_update = await storage.smembers("Birthdays:global:birthday_lists") or []
+#
+#            for data in messages_to_update:
+#                _channel, _message = data.split(":")
+#                if _channel and _message:
+#                    channel = self.client.get_channel(_channel)
+#                    message = await self.client.get_message(channel, _message)
+
     @bg_task(Task.HOURLY)
     async def weekly_announcement(self):
         storage = self.db.redis
@@ -431,7 +456,6 @@ class Birthdays(Plugin):
         last_check_ts = 0
         try:
             last_check_ts = float(await storage.get("Birthdays:global:last_check_weekly"))
-            pass
         except:
             pass
 
@@ -498,7 +522,6 @@ class Birthdays(Plugin):
         last_check_ts = 0
         try:
             last_check_ts = float(await storage.get("Birthdays:global:last_check_daily"))
-            pass
         except:
             pass
 

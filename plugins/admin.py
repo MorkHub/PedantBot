@@ -917,7 +917,10 @@ class Admin(Plugin):
             return
 
         storage = await self.get_storage(server)
+
         items = await storage.smembers('iam_roles')
+        items.sort()
+
         server_roles = [role.id for role in server.roles]
 
         body = "```yaml\n.iam <name> # give yourself a role```"

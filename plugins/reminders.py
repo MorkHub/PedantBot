@@ -226,6 +226,65 @@ class Reminders(Plugin):
 
         return None
 
+    @command(pattern="^!reminder (.+?) (.+)$",
+                description="schedule a reminder",
+                usage="!reminder <time> <reminder>")
+    async def remindme_in(self, message: discord.Message, args: tuple):
+        channel = message.channel
+        user = message.author
+        errors = []
+
+        reminder_deltatime, _ = parse_time(args[0])
+        reminder_delta = remind_deltatime.total_seconds()
+
+        label_safe = clean_string(args[1] or "no reason")
+
+        if reminder_delta < 1:
+            await self.client.send_message(
+                channel,
+                "**Reminder could not be scheduled:**\n" + '\n'.join(errors)
+            )
+
+        try:
+            tz = await Time.get_user_timezone(self.client, user.id)
+
+            now = datetime.datetime.now(tz=tz)
+            date = now + datetime.timedelta(seconds=reminder_delta)
+            date_str = date.strftime(DATETIME_FORMAT)
+
+            invoke_time = int(time.time())
+            remind_timestamp = invoke_time + remind_delta
+
+            reminder = Reminder(
+                self,
+                user=user,
+                remind_time=date,
+                channel=channel,
+                invoke_time=now,
+                message=label
+            )
+        except Exception as e:
+            await self.client.send_message(
+                channel,
+                "Could not create reminder: {}".format(e)
+            )
+            return
+
+        self.client.loop.create_task(reminder.execute())
+
+        embed = discord.Embed(
+            title="Reminder set",
+            desc=label_safe,
+            timestamp=date.timestamp(),
+            color=discord.Color.gold()
+        )
+        embed.set_author(name=user.name, icon_url=user.avatar_url or user.default_avatar_url)
+
+        await self.client.send_message(
+            channel,
+            embed=embed
+        )
+
     @command(pattern="^!remindme in (.+?)(?: (?:to|for) (.+))?$",
              description="schedule a reminder",
              usage="!remindme in <# of> <secs|mins|hours|days> to <reminder>")
@@ -439,7 +498,7 @@ class Reminders(Plugin):
         embed = discord.Embed(
             title="**Reminders for {}**\n".format(target),
             description=body or "No reminders found.".format(target),
-            color=discord.Color.purple(),
+            color=discord.Color.gold(),
         )
         embed.set_footer(
             icon_url=message.server.icon_url,
