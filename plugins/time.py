@@ -48,15 +48,15 @@ class Time(Plugin):
 
     @staticmethod
     async def get_server_timezone(server):
-        #region = server.region  # type: discord.ServerRegion
+        #region = server.region  # type: discord.GuildRegion
         return pytz.UTC
 
     @command(pattern="^!time(?: (.*))?$",
              description="show the local time for yourself or another user.",
              usage="!time [user]")
     async def show_local_time(self, message: discord.Message, args: tuple):
-        server = message.server  # type: discord.Server
-        channel = message.channel  # type: discord.Channel
+        server = message.server  # type: discord.Guild
+        channel = message.channel  # type: discord.TextChannel
         user = message.author  # type: discord.Member
 
         target = await get_object(

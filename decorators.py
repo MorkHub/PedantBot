@@ -25,7 +25,7 @@ def command(pattern: str = "", db_name: str = None, description: str = "", usage
             if not match:
                 return
 
-            server = message.server
+            server = message.guild
             channel = message.channel
             args = match.groups()
 
@@ -35,9 +35,9 @@ def command(pattern: str = "", db_name: str = None, description: str = "", usage
             if wrapper._db_name in disabled_commands:
                 return
 
-            if wrapper.nsfw and "nsfw" not in channel.name or \
-                    (hasattr(channel, 'nsfw') and channel.nsfw is not True):
-                return
+            # if wrapper.nsfw and "nsfw" not in channel.name or \
+            #         (hasattr(channel, 'nsfw') and channel.nsfw is not True):
+            #     return
 
             if cooldown:
                 check = await storage.ttl("cooldown:{}:{}".format(db_name or name, message.author))
@@ -77,7 +77,7 @@ def command(pattern: str = "", db_name: str = None, description: str = "", usage
                     return
 
             log.info("{}@{}#{} >> {}".format(
-                message.server.name,
+                message.guild.name,
                 message.author.name,
                 message.author.discriminator,
                 truncate(message.clean_content.replace('\n', r'\n'), 100)

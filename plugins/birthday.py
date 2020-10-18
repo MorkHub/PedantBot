@@ -26,16 +26,18 @@ class Birthdays(Plugin):
         Plugin.__init__(self, *args, **kwargs)
         self.failed_servers = []
 
-    async def get_birthday(self, user: discord.User) -> datetime:
+    async def get_birthday(self, user: discord.Member) -> datetime:
         storage = self.db.redis
 
-        if isinstance(user, discord.User):
+        if isinstance(user, discord.Member):
             user_id = user.id
         else:
             user_id = str(user)
 
         ts = await storage.get("Birthdays:global:birthday.{}".format(user_id))
         dt = None
+
+        log.info(ts)
 
         if ts:
             try:
@@ -45,12 +47,12 @@ class Birthdays(Plugin):
 
         return dt
 
-    async def get_birthdays(self, server, on = None, after = None, before = None) \
+    async def get_birthdays(self, server: discord.Guild, on = None, after = None, before = None) \
             -> Dict[datetime, List[discord.Member]]:
         storage = self.db.redis
         known_users = await storage.keys("Birthdays:global:birthday.*")
         permissions = json.loads(await storage.get("Birthdays.{}:permissions".format(server.id)) or "{}")
-        print(permissions)
+
         today = date.today()
 
         if on is not None:
@@ -70,10 +72,10 @@ class Birthdays(Plugin):
             else:
                 continue
 
-            if server is None:
-                member = await self.client.get_user_info(user_id)
-            else:
-                member = server.get_member(user_id)
+            # if server is None:
+            #     member = await self.client.get_user_info(user_id)
+            # else:
+            member = server.get_member(int(user_id))
 
             if member is not None:
                 if not permissions.get(member.id, True):
@@ -108,15 +110,14 @@ class Birthdays(Plugin):
              description="disable birthday announcements",
              usage="!birthdaydisable")
     async def disable_brithdays(self, message: discord.Message, args: tuple):
-        server = message.server
+        server = message.guild
         channel = message.channel
         user = message.author
 
         storage = self.db.redis
 
         if not has_permission(user, "manage_server"):
-            await self.client.send_message(
-                channel,
+            await channel.send(
                 "{}, you do not have permission to enable/disable birthday announcements.\n"
                 "Requires `manage_server`.".format(user.mention)
             )
@@ -125,21 +126,20 @@ class Birthdays(Plugin):
         await storage.srem("Birthdays:global:daily_announce_enabled", server.id)
         await storage.srem("Birthdays:global:weekly_announce_enabled", server.id)
 
-        await self.client.send_message(channel, "Birthdays will no longer be announced in this server.")
+        await channel.send("Birthdays will no longer be announced in this server.")
 
     @command(pattern="^!(bde|birthdayenable)(?: <#[0-9]*?>)?",
              description="enable birthday announcements",
              usage="!birthdayenable #birthdays")
     async def enable_birthdays(self, message: discord.Message, args: tuple):
-        server = message.server
+        server = message.guild
         channel = message.channel
         user = message.author
 
         storage = self.db.redis
 
         if not has_permission(user, "manage_server"):
-            await self.client.send_message(
-                channel,
+            await channel.send(
                 "{}, you do not have permission to enable/disable birthday announcements.\n"
                 "Requires `manage_server`.".format(user.mention)
             )
@@ -148,30 +148,26 @@ class Birthdays(Plugin):
         await storage.sadd("Birthdays:global:daily_announce_enabled", server.id)
         await storage.sadd("Birthdays:global:weekly_announce_enabled", server.id)
 
-        if len(message.channel_mentions) < 1:
-            message.channel_mentions = [channel]
+        mentions = message.channel_mentions
+        if len(mentions) < 1:
+            mentions = [channel]
 
-        for chan in message.channel_mentions:
+        for chan in mentions:
             try:
-                await self.client.send_message(chan, "Birthday announcements will be sent in this channel.")
+                await channel.send("Birthday announcements will be sent in this channel.")
                 await storage.set("Birthdays:{}:announce_channel".format(server.id), chan.id)
                 await self.client.add_reaction(message, '👍')
                 return
             except discord.errors.Forbidden:
-                await self.client.send_message(channel, "{}, I cannot send messages in that channel".format(user.mention))
+                await channel.send("{}, I cannot send messages in that channel".format(user.mention))
             except:
                 pass
 
 
-    @command(pattern="^!birthdays(?: (all))?$",
-             description="list birthdays in this server",
-             usage="!birthdays")
-    async def list_birthdays(self, message: discord.Message, args: tuple):
-        server = message.server  # type: discord.Server
-        channel = message.channel  # type: discord.Channel
-        user = message.author  # type: discord.Member
+    async def birthday_embed(self, server: discord.Guild, channel: discord.TextChannel, user: discord.Member):
+        storage = self.db.redis
 
-        if user.id == "154542529591771136" and args[0] == "all":
+        if user is not None and user.id == "154542529591771136" and args[0] == "all":
             birthdays = await self.get_birthdays(None)
         else:
             birthdays = await self.get_birthdays(server)
@@ -231,33 +227,48 @@ class Birthdays(Plugin):
                 inline=False
             )
 
-        await self.client.send_message(channel, embed=embed)
+        return embed
+
+    @command(pattern="^!birthdays(?: (all))?$",
+             description="list birthdays in this server",
+             usage="!birthdays")
+    async def list_birthdays(self, message: discord.Message, args: tuple):
+        server = message.guild  # type: discord.guild
+        channel = message.channel  # type: discord.TextChannel
+        user = message.author  # type: discord.Member
+
+        storage = self.db.redis
+
+        embed = await self.birthday_embed(server, channel, user)
+        msg = await channel.send(embed=embed)
+
+        await storage.sadd("Birthdays:global:birthday_lists", "{}:{}".format(channel.id, msg.id))
 
 
     @command(pattern="^!birthday$",
              description="show your birthday",
              usage="!birthday")
     async def show_birthday(self, message: discord.Message, args: tuple):
-        channel = message.channel  # type: discord.Channel
+        channel = message.channel  # type: discord.TextChannel
         user = message.author  # type: discord.Member
 
         dt = await self.get_birthday(user)
 
         if dt is None:
-            await self.client.send_message(channel, "{}, you have not set your birthday!\nDo so with the `!setbirthday DD/MM/YYYY` command.".format(user.mention))
+            await channel.send("{}, you have not set your birthday!\nDo so with the `!setbirthday DD/MM/YYYY` command.".format(user.mention))
             return
         else:
             if date.today() == dt:
-                await self.client.send_message(channel, "{}, today is your birthday!".format(user.mention))
+                await channel.send("{}, today is your birthday!".format(user.mention))
             else:
-                await self.client.send_message(channel, "{}, your birthday is listed as `{}`.\nYou can change it with `!setbirthday DD/MM/YYYY`".format(user.mention, dt.strftime(DATE_FORMAT)))
+                await channel.send("{}, your birthday is listed as `{}`.\nYou can change it with `!setbirthday DD/MM/YYYY`".format(user.mention, dt.strftime(DATE_FORMAT)))
 
     @command(pattern="^!(?:cb|clearbirthday)(?: (.*))?$",
              description="reset birthday",
              usage="!clearbirthday")
     async def clear_birthday(self, message: discord.Message, args: tuple):
-        server = message.server  # type: discord.Server
-        channel = message.channel  # type: discord.Channel
+        server = message.guild  # type: discord.Guild
+        channel = message.channel  # type: discord.TextChannel
         user = message.author  # type: discord.Member
 
         storage = self.db.redis
@@ -266,26 +277,25 @@ class Birthdays(Plugin):
         if args[0]:
             member = server.get_member_named(args[0]) or await self.client.get_user_info(args[0])
             if member is None:
-                await self.client.send_message(channel, "Could not find user")
+                await channel.send("Could not find user")
         else:
             member = user
 
         if not user in [member, (await self.client.application_info()).owner]:
-            await self.client.send_message(
-                channel,
+            await channel.send(
                 "{}, you do not have permission to clear other users' birthdays.\n"
                 "Requires `bot_owner`.".format(user.mention)
             )
             return
 
         await storage.delete("Birthdays:global:birthday.{}".format(member.id))
-        await self.client.send_message(channel, "{}, `{}`'s birthday was reset.".format(user.mention, str(member)))
+        await channel.send("{}, `{}`'s birthday was reset.".format(user.mention, str(member)))
 
     @command(pattern="^!(?:sb|setbirthday) ([^ ]*)$",
              description="set your birthday",
              usage="!setbirthday DD/MM/YYYY")
     async def set_birthday(self, message: discord.Message, args: tuple):
-        channel = message.channel  # type: discord.Channel
+        channel = message.channel  # type: discord.TextChannel
         user = message.author  # type: discord.Member
 
         storage = self.db.redis
@@ -299,26 +309,25 @@ class Birthdays(Plugin):
 
             dt = datetime(year, month, day)
         except:
-            await self.client.send_message(channel, "{}, Invalid date format, please use a valid date the form `DD/MM/YYYY`)".format(user.mention))
+            await channel.send("{}, Invalid date format, please use a valid date the form `DD/MM/YYYY`)".format(user.mention))
             return
 
         timestamp = dt.timestamp()
-        await storage.set("Birthdays:global:birthday.{}".format(user.id), timestamp)
-        await self.client.send_message(channel, "{}, your birthday was set to `{}`".format(user.mention, dt.strftime(DATE_FORMAT)))
+        i = await storage.set("Birthdays:global:birthday.{}".format(user.id), timestamp)
+        await channel.send("{}, your birthday was set to `{}`".format(user.mention, dt.strftime(DATE_FORMAT)))
 
     @command(pattern="^!(?:sb|setbirthday) ([^ ]*) (.*)$",
              description="set someone else's birthday",
              usage="!setbirthday DD/MM/YYYY <name or id>")
     async def set_other_birthday(self, message: discord.Message, args: tuple):
-        server = message.server  # type: discord.Server
-        channel = message.channel  # type: discord.Channel
+        server = message.guild  # type: discord.guild
+        channel = message.channel  # type: discord.TextChannel
         user = message.author  # type: discord.Member
 
         storage = self.db.redis
 
         if not user == (await self.client.application_info()).owner:
-            await self.client.send_message(
-                channel,
+            await channel.send(
                 "{}, you do not have permission to change other users' birthdays.\n"
                 "Requires `bot_owner`.".format(user.mention)
             )
@@ -336,19 +345,19 @@ class Birthdays(Plugin):
 
                 dt = datetime(year, month, day)
             except:
-                await self.client.send_message(channel, "{}, Invalid date format, please use a valid date the form `DD/MM/YYYY`)")
+                await channel.send("{}, Invalid date format, please use a valid date the form `DD/MM/YYYY`)")
                 return
 
             timestamp = dt.timestamp()
             await storage.set("Birthdays:global:birthday.{}".format(member.id), timestamp)
-            await self.client.send_message(channel, "Set `{}`'s birthday as `{}`".format(str(member), dt.strftime(DATE_FORMAT)))
+            await channel.send("Set `{}`'s birthday as `{}`".format(str(member), dt.strftime(DATE_FORMAT)))
 
     @command(pattern="^!(?:b|birthday) opt (in|out)$",
              description="set someone else's birthday",
              usage="!birthday opt [in|out]")
     async def birthday_opt_in(self, message: discord.Message, args: tuple):
-        server = message.server  # type: discord.Server
-        channel = message.channel  # type: discord.Channel
+        server = message.guild  # type: discord.guild
+        channel = message.channel  # type: discord.TextChannel
         user = message.author  # type: discord.Member
 
         storage = await self.get_storage(server)
@@ -360,8 +369,7 @@ class Birthdays(Plugin):
         permissions[user.id] = announcement_permission
 
         await storage.set("permissions", json.dumps(permissions))
-        await self.client.send_message(
-            channel,
+        await channel.send(
             "{}, your birthday {} be announced in this server from now on.".format(
                 user.mention, message
             ))
@@ -370,7 +378,7 @@ class Birthdays(Plugin):
              description="view the ages of users in this server",
              usage="!age real")
     async def user_ages(self, message: discord.Message, *_):
-        server = message.server
+        server = message.guild
         channel = message.channel
         user = message.author
 
@@ -399,42 +407,48 @@ class Birthdays(Plugin):
             )
 
         embed = discord.Embed(
-            title="Age of users in {server.name}".format(server=message.server),
+            title="Age of users in {server.name}".format(server=message.guild),
             color=discord.Colour.blue(),
             description=string
         )
 
-        await self.client.send_message(
-            channel,
+        await channel.send(
             embed=embed
         )
 
-    # background tasks
+    @bg_task(Task.HOURLY)
+    async def update_birthday_lists(self):
+        storage = self.db.redis
+        now = datetime.now()
+        today = now.date()
 
-#    WIP feature
-#
-#    @bg_task(TASK.HOURLY)
-#    async def update_birthday_lists(self):
-#        storage = self.db.redis
-#        now = datetime.now()
-#        today = now.date()
-#
-#        last_check_ts = 0
-#        try:
-#            last_check_ts = float(await storage.get("Birthdays:global:last_update"))
-#        except:
-#            pass
-#
-#        last_check = date.fromtimestamp(last_check_ts or 0)
-#
-#        if last_check < today:
-#            messages_to_update = await storage.smembers("Birthdays:global:birthday_lists") or []
-#
-#            for data in messages_to_update:
-#                _channel, _message = data.split(":")
-#                if _channel and _message:
-#                    channel = self.client.get_channel(_channel)
-#                    message = await self.client.get_message(channel, _message)
+        try:
+            last_check_ts = float(await storage.get("Birthdays:global:last_update"))
+        except:
+            last_check_ts = 0
+
+        last_check = date.fromtimestamp(last_check_ts or 0)
+
+        if last_check < today:
+            log.info("Checking messages to update ({})".format(today.strftime(DATE_FORMAT)))
+
+            messages_to_update = await storage.smembers("Birthdays:global:birthday_lists") or []
+            if len(messages_to_update) == 0:
+                log.info("No messages to update")
+
+            for data in messages_to_update:
+                channel_id, message_id = data.split(":")
+                if channel_id and message_id:
+                    channel = self.client.get_channel(int(channel_id))
+                    message = await channel.fetch_message(int(message_id))  # type: discord.Message
+                    if message is None:
+                        await storage.srem(data)
+
+                    embed = await self.birthday_embed(channel.guild, channel, None)
+                    await message.edit(embed=embed)
+
+            await storage.set("Birthdays:global:last_update", now.timestamp())
+
 
     @bg_task(Task.HOURLY)
     async def weekly_announcement(self):
@@ -468,13 +482,13 @@ class Birthdays(Plugin):
                 log.info("Weekly announcement disabled in all servers")
 
             for server_id in servers:
-                server = self.client.get_server(server_id)
+                server = self.client.get_guild(int(server_id))
                 if not server:
                     continue
 
                 announce_channel = await storage.get("Birthdays:{}:announce_channel".format(server_id))
                 try:
-                    channel = server.get_channel(announce_channel)
+                    channel = server.get_channel(int(announce_channel))
                     if channel:
                         body = ""
                         birthdays = await self.get_birthdays(server, after=monday, before=sunday)
@@ -495,7 +509,7 @@ class Birthdays(Plugin):
                             )
 
                         embed = discord.Embed(title="Upcoming birthdays this week", description=body, colour=discord.Colour.gold())
-                        await self.client.send_message(channel, embed=embed)
+                        await channel.send(embed=embed)
                 except Exception as e:
                     log.warning("Weekly birthday announcement failed in server {}".format(server_id))
                     log.exception(e)
@@ -544,17 +558,18 @@ class Birthdays(Plugin):
                 log.info("Daily announcement disabled in all servers")
 
             for server_id in servers:
-                server = self.client.get_server(server_id)
+                server = self.client.get_guild(int(server_id))  # type: discord.Guild
                 if not server:
                     log.warn("Server {} not found".format(server_id))
                     continue
 
                 announce_channel = await storage.get("Birthdays:{}:announce_channel".format(server_id))
                 if announce_channel is None:
-                   continue
+                    log.warn("No announcement channel specified")
+                    continue
 
                 try:
-                    channel = server.get_channel(announce_channel)
+                    channel = server.get_channel(int(announce_channel))
                     if channel:
                         body = "Happy Birthday today!\n"
                         birthdays = await self.get_birthdays(server, on=today)  # type: dict
@@ -571,7 +586,7 @@ class Birthdays(Plugin):
                             )
 
                         try:
-                            await self.client.send_message(channel, body)
+                            await channel.send(body)
                             if server_id in self.failed_servers:
                                 self.failed_servers.remove(server_id)
                         except Exception as e:

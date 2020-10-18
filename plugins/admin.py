@@ -29,8 +29,8 @@ class Admin(Plugin):
              description="set bot's playing status (owner only)",
              usage="!status [message]")
     async def set_status(self, message: discord.Message, args: Tuple[str, str]):
-        server = message.server  # type: discord.Server
-        channel = message.channel  # type: discord.Channel
+        server = message.guild  # type: discord.Guild
+        channel = message.channel  # type: discord.TextChannel
         user = message.author  # type: discord.Member
 
         owners = await self.db.redis.smembers('owners') or {}
@@ -66,8 +66,8 @@ class Admin(Plugin):
              usage=".warn <user> for [reason]",
              requires_permissions="ban_members")
     async def warn_user(self, message: discord.Message, args: Tuple[str, str]):
-        server = message.server  # type: discord.Server
-        channel = message.channel
+        server = message.guild  # type: discord.Guild
+        channel = message.channel  # type: discord.TextChannel
         user = message.author
 
         if not has_permission(user, "ban_members"):
@@ -158,76 +158,73 @@ class Admin(Plugin):
         if not res:
             return
 
-        await self.client.send_typing(channel)
+        async with channel.typing:
+            if res.content.lower() == 'y':
+                added = await storage.rpush('warnings:{}'.format(target.id), json.dumps(this_warning))
+                if not added:
+                    await channel.send("Could not add warning.")
+                    return
 
-        if res.content.lower() == 'y':
-            added = await storage.rpush('warnings:{}'.format(target.id), json.dumps(this_warning))
-            if not added:
-                await self.client.send_message(
-                    channel,
-                    "Could not add warning."
-                )
-                return
+                func = None
+                suffix = ""
+                if action == "ban":
+                    suffix = "ned"
+                    func = self.client.ban
+                elif action == "kick":
+                    suffix = "ed"
+                    func = self.client.kick
+                elif action == "written warning only":
+                    action = "warned"
 
-            func = None
-            suffix = ""
-            if action == "ban":
-                suffix = "ned"
-                func = self.client.ban
-            elif action == "kick":
-                suffix = "ed"
-                func = self.client.kick
-            elif action == "written warning only":
-                action = "warned"
+                try:
+                    if func:
+                        await func(target)
 
-            try:
-                if func:
-                    await func(target)
-                private = await self.client.start_private_message(target)
-                msg = await self.client.send_message(
-                    private,
-                    "You have been **{action}** from __{server}__ for: `{reason}`".format(
-                        user=clean_string(target.name),
-                        server=clean_string(server.name),
-                        reason=clean_string(reason or "-"),
-                        action=action+suffix
-                    )
-                )
-            except discord.Forbidden as e:
-                if 'private' not in locals():
-                    await self.client.send_message(
-                        channel,
-                        "**{user}** could not be kicked from {action}: ```\n{reason}```".format(
+                    private = await self.client.start_private_message(target)
+                    msg = await self.client.send_message(
+                        private,
+                        "You have been **{action}** from __{server}__ for: `{reason}`".format(
                             user=clean_string(target.name),
-                            action=action+suffix,
-                            reason=clean_string(e)
+                            server=clean_string(server.name),
+                            reason=clean_string(reason or "-"),
+                            action=action+suffix
                         )
                     )
-                    return
-            except discord.HTTPException:
-                pass
+                except discord.Forbidden as e:
+                    if 'private' not in locals():
+                        await self.client.send_message(
+                            channel,
+                            "**{user}** could not be kicked from {action}: ```\n{reason}```".format(
+                                user=clean_string(target.name),
+                                action=action+suffix,
+                                reason=clean_string(e)
+                            )
+                        )
+                        return
+                except discord.HTTPException:
+                    pass
 
-            await self.client.send_message(
-                channel,
-                "{user.mention} has been {action} for: `{reason}`.\n"
-                "Please respect the rules of this server.".format(
-                    user=target,
-                    reason=reason or "-",
-                    action=action + suffix
+                await self.client.send_message(
+                    channel,
+                    "{user.mention} has been {action} for: `{reason}`.\n"
+                    "Please respect the rules of this server.".format(
+                        user=target,
+                        reason=reason or "-",
+                        action=action + suffix
+                    )
                 )
-            )
 
-        else:
-            await self.client.send_message(
-                channel,
-                "Cancelled. No action has been taken."
-            )
+            else:
+                await self.client.send_message(
+                    channel,
+                    "Cancelled. No action has been taken."
+                )
 
     @command(pattern=r'^\.delwarn ([0-9]+) for (.*)$',
              description="clear a warning for a user",
              usage=".delwarn <num> for <user>")
     async def remove_warning(self, message: discord.Message, args: Tuple[str, str]):
-        server = message.server
+        server = message.guild
         channel = message.channel
         user = message.author
 
@@ -302,7 +299,7 @@ class Admin(Plugin):
              description="list warnings for user or self",
              usage='.warnlist <user>')
     async def list_warnings(self, message: discord.Message, args: Tuple[str, str]):
-        server = message.server
+        server = message.guild
         channel = message.channel
         user = message.author
 
@@ -400,7 +397,7 @@ class Admin(Plugin):
              description="set the warning threshold for kick/ban",
              usage=".warn threshold <kick|ban> <# of warnings>")
     async def set_threshold(self, message: discord.Message, args: Tuple[str, str]):
-        server = message.server
+        server = message.guild
         channel = message.channel
         user = message.author
 
@@ -444,7 +441,7 @@ class Admin(Plugin):
              description="view the current warning threshold for kick/ban",
              usage=".warn threshold")
     async def view_thresholds(self, message: discord.Message, *_):
-        server = message.server
+        server = message.guild
         channel = message.channel
 
         await self.client.send_typing(channel)
@@ -468,8 +465,8 @@ class Admin(Plugin):
              description="kick user from the current server",
              usage=".kick <user> [for <reason>]")
     async def kick_user(self, message: discord.Message, args: Tuple[str, str]):
-        server = message.server  # type: discord.Server
-        channel = message.channel  # type: discord.Channel
+        server = message.guild  # type: discord.Guild
+        channel = message.channel  # type: discord.TextChannel
         user = message.author  # type: discord.Member
 
         target = await get_object(
@@ -577,7 +574,7 @@ class Admin(Plugin):
              description="list users who have been banned form this server",
              usage=".bans")
     async def list_bans(self, message: discord.Message, *_):
-        server = message.server
+        server = message.guild
         channel = message.channel
         user = message.author
 
@@ -613,7 +610,7 @@ class Admin(Plugin):
              description="clean up bot messages",
              usage=".clean <max # of messages>")
     async def clean_channel(self, message: discord.Message, args: Tuple[str, str]):
-        channel = message.channel  # type: discord.Channel
+        channel = message.channel  # type: discord.TextChannel
 
         limit = 20
         if args[0] and args[0].isnumeric():
@@ -632,7 +629,7 @@ class Admin(Plugin):
              description="purge messages from channel",
              usage=".purge <max # of messages> [from <user>]")
     async def purge_channel(self, message: discord.Message, args: Tuple[str, str]):
-        channel = message.channel  # type: discord.Channel
+        channel = message.channel  # type: discord.TextChannel
         user = message.author  # type: discord.Member
 
         await self.client.send_typing(channel)
@@ -716,7 +713,7 @@ class Admin(Plugin):
              description="define self-assignable role",
              usage=".iam add <role> [as <name>]")
     async def add_iam_role(self, message: discord.Message, args: Tuple[str, str]):
-        server = message.server
+        server = message.guild
         channel = message.channel
         user = message.author
 
@@ -797,7 +794,7 @@ class Admin(Plugin):
              description="delete a self-assignable role",
              usage=".iam del <role>")
     async def del_iam_role(self, message: discord.Message, args: Tuple[str, str]):
-        server = message.server
+        server = message.guild
         channel = message.channel
         user = message.author
 
@@ -838,7 +835,7 @@ class Admin(Plugin):
              description="add a self-assignable role to yourself",
              usage=".iam <role>")
     async def iam_role(self, message: discord.Message, args: Tuple[str, str]):
-        server = message.server
+        server = message.guild
         channel = message.channel
         user = message.author
 
@@ -871,7 +868,7 @@ class Admin(Plugin):
              description="remove self-assignable role from yourself",
              usage=".iam not <role>")
     async def iam_not_role(self, message: discord.Message, args: Tuple[str, str]):
-        server = message.server
+        server = message.guild
         channel = message.channel
         user = message.author
 
@@ -904,7 +901,7 @@ class Admin(Plugin):
              description="view self-assignable roles",
              usage=".iam list")
     async def list_iam_roles(self, message: discord.Message, *_):
-        server = message.server
+        server = message.guild
         channel = message.channel
         user = message.author
 
@@ -958,7 +955,7 @@ class Admin(Plugin):
         channels = ""
         displayed, count = 0, 0
         for channel in sorted(server.channels, key=lambda c: c.position):
-            if channel.type != discord.ChannelType.text:
+            if channel.type != discord.TextChannelType.text:
                 continue
 
             count += 1
@@ -1046,7 +1043,7 @@ class Admin(Plugin):
              description="find out which users have a specific permission",
              usage=".whohas <permission> [in <channel>]")
     async def members_with_permission(self, message: discord.Message, args: Tuple[str, str]):
-        server = message.server
+        server = message.guild
         channel = message.channel
         user = message.author
 
@@ -1074,7 +1071,7 @@ class Admin(Plugin):
                 self.client,
                 args[1].replace(' ', '_'),
                 message,
-                types=(discord.Channel,)
+                types=(discord.TextChannel,)
             )
             check = lambda m: has_permission(m.permissions_in(chan), permissions)
             location = chan
@@ -1093,7 +1090,7 @@ class Admin(Plugin):
 
         body = "Members who have `{}` granted in `{}`:\n\n`".format(
             ', '.join(permissions),
-            clean_string(location.mention if isinstance(location, discord.Channel) else location.name)
+            clean_string(location.mention if isinstance(location, discord.TextChannel) else location.name)
         )
 
         body += truncate('`, `'.join([

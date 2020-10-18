@@ -3,17 +3,17 @@ from util import redis_address
 
 """Start Plugins"""
 from plugins.admin import Admin
-from plugins.commands import Commands
-from plugins.define import Define
-from plugins.fun import Fun
+#from plugins.commands import Commands
+#from plugins.define import Define
+#from plugins.fun import Fun
 from plugins.help import Help
-from plugins.info import Info
-from plugins.levels import Levels
-from plugins.music import Music
-from plugins.reminders import Reminders
-from plugins.test import Test
-from plugins.time import Time
-from plugins.utility import Utility
+#from plugins.info import Info
+#from plugins.levels import Levels
+#from plugins.music import Music
+#from plugins.reminders import Reminders
+#from plugins.test import Test
+#from plugins.time import Time
+#from plugins.utility import Utility
 from plugins.birthday import Birthdays
 """End Plugins"""
 
@@ -27,7 +27,7 @@ def main():
     token = os.getenv('TOKEN')
     shard = os.getenv('SHARD_ID') or '0'
     shard_count = os.getenv('SHARD_COUNT') or '1'
-    redis_url = redis_address(os.getenv('REDIS_ADDRESS') or '')
+    redis_url = redis_address(os.getenv('REDIS_ADDRESS') or 'localhost')
 
     logging.basicConfig(
         level=logging.INFO,

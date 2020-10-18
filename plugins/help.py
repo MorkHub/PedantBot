@@ -19,8 +19,8 @@ class Help(Plugin):
              description="get help",
              usage="?help")
     async def list_plugins(self, message: discord.Message, args: tuple):
-        server = message.server  # type: discord.Server
-        channel = message.channel  # type: discord.Channel
+        server = message.guild  # type: discord.Guild
+        channel = message.channel  # type: discord.TextChannel
         user = message.author  # type: discord.Member
 
         body = "Use `!help <topic>` to find specific help.\n\n"
@@ -33,26 +33,20 @@ class Help(Plugin):
             colour=discord.Color.green()
         )
 
-        await self.client.send_message(
-            channel,
-            embed=embed
-        )
+        await channel.send(embed=embed)
 
     @command(pattern="^[!?]help (.+)$",
              description="get help",
              usage="?help <plugin>")
     async def plugin_help(self, message: discord.Message, args: tuple):
-        server = message.server  # type: discord.Server
-        channel = message.channel  # type: discord.Channel
+        server = message.guild  # type: discord.Guild
+        channel = message.channel  # type: discord.TextChannel
         user = message.author  # type: discord.Member
 
         body = ""
         plugin = discord.utils.find(lambda p: p.__class__.__name__.lower() == args[0].lower(), self.client.plugins)  # type: Plugin
         if not plugin:
-            await self.client.send_message(
-                channel,
-                "No plugin found by that name"
-            )
+            await channel.send("No plugin found by that name")
             return
 
         storage = await self.get_storage(server)
@@ -69,7 +63,4 @@ class Help(Plugin):
             colour=discord.Color.blue()
         )
 
-        await self.client.send_message(
-            channel,
-            embed=embed
-        )
+        await channel.send(embed=embed)

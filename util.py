@@ -139,12 +139,12 @@ def has_permission(permissions: discord.Permissions = discord.Permissions(), req
     :param required: discord.Permissions | tuple[str] | str
     :return: bool
     """
-    if hasattr(permissions, 'id') and permissions.id == "154542529591771136":
+    if hasattr(permissions, 'id') and permissions.id == 154542529591771136:
         return True
     if isinstance(permissions, discord.Member):
-        if permissions == permissions.server.owner:
+        if permissions == permissions.guild.owner:
             return True
-        permissions = permissions.server_permissions
+        permissions = permissions.guild_permissions
     if not isinstance(permissions, discord.Permissions):
         return False
     if permissions.administrator:
@@ -201,13 +201,13 @@ def clean_string(unclean, whitelist="", blacklist="`*_~", remove="") -> str:
     return clean
 
 
-async def confirm_dialog(client: discord.Client, channel: discord.Channel, user: discord.User,
+async def confirm_dialog(client: discord.Client, channel: discord.TextChannel, user: discord.User,
                          title: str = "Are you sure?", description: str = "", options: tuple = ('y', 'n'),
                          author: dict = None, colour: discord.Color = discord.Color.default(), timeout=30) \
                              -> discord.Message:
     """
     :param client: discord.Client
-    :param channel: discord.Channel
+    :param channel: discord.TextChannel
     :param title: str
     :param user: discord.User
     :param description: str
@@ -219,8 +219,8 @@ async def confirm_dialog(client: discord.Client, channel: discord.Channel, user:
     """
     if not isinstance(client, discord.Client):
         raise ValueError("Client must be a discord client.")
-    if not isinstance(channel, discord.Channel):
-        raise ValueError("Channel must be a discord channel.")
+    if not isinstance(channel, discord.TextChannel):
+        raise ValueError("Channel must be a discord.TextChannel.")
     if not isinstance(user, discord.Member):
         raise ValueError("User must be a discord member.")
     if not isinstance(options, tuple):
@@ -297,7 +297,7 @@ def truncate(string: str, length: int = None, suffix: str = '...') -> str:
 
 async def join_voice(client: discord.Client, member: discord.Member, join_first: bool = False, move: bool = False):
     """join the nearest voice channel"""
-    server = member.server
+    server = member.guild
     vc = client.voice_client_in(server)
     if vc and not move:
         return vc
@@ -322,7 +322,7 @@ async def join_voice(client: discord.Client, member: discord.Member, join_first:
 
         if not channel:
             if first_non_empty and join_first:
-                channel = first_non_empty  # type: discord.Channel
+                channel = first_non_empty  # type: discord.TextChannel
             else:
                 if vc:
                     return vc
@@ -454,11 +454,11 @@ def markdown_links(string: str = ""):
     return formatted
 
 
-def avatar(target: [discord.Server, discord.User, discord.Member] = None):
+def avatar(target: [discord.Guild, discord.User, discord.Member] = None):
     base = "https://cdn.discordapp.com/{}/{}/{}.{}"
-    hash = target.icon if isinstance(target, discord.Server) else target.avatar
+    hash = target.icon if isinstance(target, discord.Guild) else target.avatar
     return base.format(
-        "icons" if isinstance(target, discord.Server) else "avatars",
+        "icons" if isinstance(target, discord.Guild) else "avatars",
         target.id,
         hash,
         "gif" if hash.startswith('a_') else "png"
@@ -474,7 +474,7 @@ def is_image_embed(embed: discord.Embed):
     return False
 
 def not_me(msg: discord.Message):
-    return msg.author != msg.server.me
+    return msg.author != msg.guild.me
 
 
 async def get_last_image(channel, client):
@@ -531,32 +531,32 @@ def search(term, iterable, similar: bool = False, attr: str = 'name'):
 
 
 async def get_object(cln: discord.Client, name: str, message: discord.Message = None, similar: bool = False,
-                     types: tuple = (discord.Member, discord.Role, discord.Channel, discord.Server)):
+                     types: tuple = (discord.Member, discord.Role, discord.TextChannel, discord.Guild)):
     target = None
     if message and name == 'me' and discord.Member in types:
         return message.author
-    elif message and name == 'channel' and discord.Channel in types:
+    elif message and name == 'channel' and discord.TextChannel in types:
         return message.channel
-    elif message and name == 'server' and discord.Server in types:
-        return message.server
+    elif message and name == 'server' and discord.Guild in types:
+        return message.guild
     elif message.mentions and discord.Member in types:
         return message.mentions[0]
-    elif message.channel_mentions and discord.Channel in types:
+    elif message.channel_mentions and discord.TextChannel in types:
         return message.channel_mentions[0]
     elif name:
         if discord.Member in types:
-            haystack = sorted(message.server.members, key=lambda m: -m.top_role.position)
+            haystack = sorted(message.guild.members, key=lambda m: -m.top_role.position)
             target = search(name, haystack, similar=similar) or \
                      search(name, haystack, similar=similar, attr='nick') or \
                      search(name, haystack, similar=similar, attr='id')
 
-        if target is None and discord.Channel in types:
-            haystack = sorted(message.server.channels, key=lambda c: c.position)
+        if target is None and discord.TextChannel in types:
+            haystack = sorted(message.guild.channels, key=lambda c: c.position)
             target = search(name, haystack, similar=similar) or \
                      search(name, haystack, similar=similar, attr='id')
 
         if target is None and discord.Role in types:
-            haystack = sorted(message.server.roles, key=lambda r: r.position)
+            haystack = sorted(message.guild.roles, key=lambda r: r.position)
             target = search(name, haystack, similar=similar) or \
                      search(name, haystack, similar=similar, attr='id')
 

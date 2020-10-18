@@ -31,15 +31,17 @@ class Pedant(discord.Client):
             await self.logout()
 
     async def ping(self):
-        await self.wait_until_ready()
-        while True:
-            keep_alive = math.ceil(self.ping_interval * 1.3)
-            if self.is_logged_in:
-                await self.db.redis.setex('heartbeat:{}:ping'.format(self.shard_id), keep_alive, '1')
-            else:
-                await self.db.redis.setex('heartbeat:{}:ping'.format(self.shard_id), keep_alive, '0')
+        pass
+    #     await self.wait_until_ready()
+    #     while True:
+    #         keep_alive = math.ceil(self.ping_interval * 1.3)
 
-            await asyncio.sleep(3)
+    #         if self.is_logged_in:
+    #             await self.db.redis.setex('heartbeat:{}:ping'.format(self.shard_id), keep_alive, '1')
+    #         else:
+    #             await self.db.redis.setex('heartbeat:{}:ping'.format(self.shard_id), keep_alive, '0')
+
+    #         await asyncio.sleep(3)
 
     async def on_ready(self):
         for plugin in self.plugins:
@@ -59,8 +61,8 @@ class Pedant(discord.Client):
         self.loop.create_task(self.ping())
 
     async def on_message(self, message: discord.Message):
-        if message.channel.is_private:
-            return
+        # if message.channel.is_private:
+        #     return
         if message.author.__class__ != discord.Member:
             return
         if message.author == self.user:
@@ -68,13 +70,13 @@ class Pedant(discord.Client):
         if message.author.bot:
             return
 
-        server = message.server
+        server = message.guild
         if server is None:
             return
 
         if message.content.startswith((';enable ', ';disable ')) and \
                 len(message.content.split(maxsplit=1)) == 2:
-            channel = message.channel  # type: discord.Channel
+            channel = message.channel  # type: discord.TextChannel
             user = message.author  # type: discord.Member
 
             if not has_permission(user, "manage_server"):
@@ -103,7 +105,7 @@ class Pedant(discord.Client):
 
             if plugin.owner_manage:
                 owners = await self.db.redis.smembers('owners') or []
-                if user.id not in owners:
+                if int(user.id) not in owners:
                     await self.send_message(
                         channel,
                         "{user.mention}, only my owner(s) can manage that plugin.\n"
@@ -163,11 +165,11 @@ class Pedant(discord.Client):
 
     async def send_message(self, destination, content=None, *, tts=False, embed=None):
         dest = destination
-        if isinstance(dest, discord.Channel):
-            dest = dest.server
+        if isinstance(dest, discord.TextChannel):
+            dest = dest.guild
 
-        if isinstance(dest, discord.PrivateChannel):
-            dest = dest.name or dest.user
+        # if isinstance(dest, discord.PrivateChannel):
+            # dest = dest.name or dest.user
 
         text = content or (embed.title or embed.description)
         if text:
@@ -176,7 +178,7 @@ class Pedant(discord.Client):
                 truncate(text, 100)
             ))
 
-        msg = await super().send_message(destination, content, tts=tts, embed=embed)
+        msg = await destination.send(content, tts=tts, embed=embed)
 
         try:
             await self.db.redis.incr('pedant3.stats:messages_sent')
@@ -234,7 +236,7 @@ class Pedant(discord.Client):
         return plugins
 
     async def on_message_edit(self, before, after):
-        server = before.server
+        server = before.guild
         if server is None:
             return
 
@@ -242,7 +244,7 @@ class Pedant(discord.Client):
             self.loop.create_task(plugin.on_message_edit(before, after))
 
     async def on_message_delete(self, message):
-        server = message.server
+        server = message.guild
         if server is None:
             return
 
@@ -250,10 +252,7 @@ class Pedant(discord.Client):
             self.loop.create_task(plugin.on_message_delete(message))
 
     async def on_channel_create(self, channel):
-        if channel.is_private:
-            return
-
-        server = channel.server
+        server = channel.guild
         if server is None:
             return
 
@@ -261,10 +260,7 @@ class Pedant(discord.Client):
             self.loop.create_task(plugin.on_channel_create(channel))
 
     async def on_channel_update(self, before, after):
-        if before.is_private:
-            return
-
-        server = before.server
+        server = before.guild
         if server is None:
             return
 
@@ -272,10 +268,10 @@ class Pedant(discord.Client):
             self.loop.create_task(plugin.on_channel_update(before, after))
 
     async def on_channel_delete(self, channel):
-        if channel.is_private:
-            return
+        # if channel.is_private:
+        #     return
 
-        server = channel.server
+        server = channel.guild
         if server is None:
             return
 
@@ -283,7 +279,7 @@ class Pedant(discord.Client):
             self.loop.create_task(plugin.on_channel_delete(channel))
 
     async def on_member_join(self, member):
-        server = member.server
+        server = member.guild
         if server is None:
             return
 
@@ -291,7 +287,7 @@ class Pedant(discord.Client):
             self.loop.create_task(plugin.on_member_join(member))
 
     async def on_member_remove(self, member):
-        server = member.server
+        server = member.guild
         if server is None:
             return
 
@@ -299,7 +295,7 @@ class Pedant(discord.Client):
             self.loop.create_task(plugin.on_member_remove(member))
 
     async def on_member_update(self, before, after):
-        server = before.server
+        server = before.guild
         if server is None:
             return
 
@@ -342,13 +338,13 @@ class Pedant(discord.Client):
             self.loop.create_task(plugin.on_server_remove(server))
 
     async def on_server_role_create(self, role):
-        server = role.server
+        server = role.guild
 
         for plugin in await self.plugin_manager.get_all(server):
             self.loop.create_task(plugin.on_server_role_create(role))
 
     async def on_server_role_delete(self, role):
-        server = role.server
+        server = role.guild
         if server is None:
             return
 
@@ -356,7 +352,7 @@ class Pedant(discord.Client):
             self.loop.create_task(plugin.on_server_role_delete(role))
 
     async def on_server_role_update(self, before, after):
-        server = before.server
+        server = before.guild
         if server is None:
             return
 
@@ -364,7 +360,7 @@ class Pedant(discord.Client):
             self.loop.create_task(plugin.on_server_role_update(before, after))
 
     async def on_voice_state_update(self, before, after):
-        server = before.server
+        server = before.guild
         if server is None:
             return
 
@@ -372,7 +368,7 @@ class Pedant(discord.Client):
             self.loop.create_task(plugin.on_voice_state_update(before, after))
 
     async def on_member_ban(self, member):
-        server = member.server
+        server = member.guild
         if server is None:
             return
 
@@ -380,7 +376,7 @@ class Pedant(discord.Client):
             self.loop.create_task(plugin.on_member_ban(member))
 
     async def on_member_unban(self, member):
-        server = member.server
+        server = member.guild
         if server is None:
             return
 
@@ -388,10 +384,10 @@ class Pedant(discord.Client):
             self.loop.create_task(plugin.on_member_unban(member))
 
     async def on_typing(self, channel, user, when):
-        if channel.is_private:
-            return
+        # if channel.is_private:
+        #     return
 
-        server = channel.server
+        server = channel.guild
         if server is None:
             return
 

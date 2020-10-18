@@ -49,7 +49,7 @@ class Plugin(object, metaclass=PluginMount):
             len(self.commands)
         ))
 
-    async def get_storage(self, server: discord.Server) -> Storage:
+    async def get_storage(self, server: discord.Guild) -> Storage:
         server_id = server.id
         paired = await self.client.db.redis.get('Admin.global:paired_server:{}'.format(server_id))
         if paired:

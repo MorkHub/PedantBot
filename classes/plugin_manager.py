@@ -23,7 +23,7 @@ class PluginManager:
         for plugin in Plugin.plugins:
             self.load(plugin)
 
-    async def get_all(self, server: discord.Server):
+    async def get_all(self, server: discord.Guild):
         enabled_plugins = await self.db.redis.smembers('plugins_enabled:{}'.format(server.id))
         if not enabled_plugins:
             patch = True
